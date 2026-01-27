@@ -29,15 +29,15 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const { logout } = useApp();
   
   // Componente personalizado para los puntos clicables
-  const CustomDot = (props: any) => {
-    const { cx, cy, payload, fill, r } = props;
+  // const CustomDot = (props: any) => {
+    // const { cx, cy, payload, fill, r } = props;
     
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill={fill}
+    // return (
+      // <circle
+        // cx={cx}
+        // cy={cy}
+        // r={r}
+        // fill={fill}
         stroke="white"
         strokeWidth={1}
         style={{ cursor: 'pointer' }}
@@ -48,8 +48,8 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
           }
         }}
       />
-    );
-  };
+    // );
+  // };
 
   // Estados para filtros
   const [subVista, setSubVista] = useState<'desempeno' | 'equipo'>('desempeno');

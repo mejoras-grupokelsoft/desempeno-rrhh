@@ -67,8 +67,8 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
   // Calcular seniority esperado según rol
   const seniorityEsperado: Seniority = useMemo(() => {
-    if (currentUser.rol === 'ANALISTA' || currentUser.rol === 'Analista') return 'Junior';
-    if (currentUser.rol === 'LIDER' || currentUser.rol === 'Lider') return 'Semi Senior';
+    if (currentUser.rol === 'Analista') return 'Junior';
+    if (currentUser.rol === 'Lider') return 'Semi Senior';
     return 'Senior';
   }, [currentUser.rol]);
 

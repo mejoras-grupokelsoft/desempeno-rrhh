@@ -453,8 +453,8 @@ export function compararSkillsPorPeriodo<T extends {
 }>(
   evaluations: T[],
   userEmail: string,
-  periodoA: string, // Se ignora, se usa para display
-  periodoB: string  // Se ignora, se usa para display
+  _periodoA: string, // Se ignora, se usa para display
+  _periodoB: string  // Se ignora, se usa para display
 ) {
   // Filtrar evaluaciones de la persona
   const evals = evaluations.filter(e => e.evaluadoEmail === userEmail);

@@ -40,6 +40,8 @@ export interface ApiResponse {
   users: User[];
   evaluations: Evaluation[];
   skills_matrix: SkillMatrix[];
+  error?: boolean;
+  message?: string;
 }
 
 export interface RadarDataPoint {

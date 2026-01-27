@@ -1,5 +1,6 @@
 // src/context/AppContext.tsx
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { User, Evaluation, SkillMatrix, ApiResponse } from '../types';
 
 interface AppContextType {
@@ -69,7 +70,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Limpiar espacios extras en roles y áreas
       const cleanedUsers = (data.users || []).map(u => ({
         ...u,
-        rol: u.rol.trim(),
+        rol: u.rol.trim() as UserRole,
         area: u.area.trim()
       }));
       

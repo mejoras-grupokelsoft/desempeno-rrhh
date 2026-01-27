@@ -1,6 +1,6 @@
 // src/components/Dashboard.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { filterEvaluationsByRole, getUniqueAreas, getUniqueEvaluados, canSeeAll, getUniqueHardSkillAreas } from '../utils/filters';
 import {
@@ -32,11 +32,11 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [seniorityEsperado, setSeniorityEsperado] = useState<Seniority>('Junior');
+  const [seniorityEsperado] = useState<Seniority>('Junior');
   
   // Vista inicial depende del rol
   const [vista, setVista] = useState<VistaType>(
-    currentUser.rol === 'Lider' ? 'equipo' : 'individual'
+    currentUser?.rol === 'Lider' ? 'equipo' : 'individual'
   );
   
   const [selectedFormulario, setSelectedFormulario] = useState<'LIDER' | 'ANALISTA' | ''>(''); // '' = ambos
