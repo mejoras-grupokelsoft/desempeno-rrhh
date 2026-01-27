@@ -27,29 +27,6 @@ interface MetricasLiderProps {
 
 export default function MetricasLider({ evaluations, skillsMatrix, currentUser }: MetricasLiderProps) {
   const { logout } = useApp();
-  
-  // Componente personalizado para los puntos clicables
-  // const CustomDot = (props: any) => {
-    // const { cx, cy, payload, fill, r } = props;
-    
-    // return (
-      // <circle
-        // cx={cx}
-        // cy={cy}
-        // r={r}
-        // fill={fill}
-        stroke="white"
-        strokeWidth={1}
-        style={{ cursor: 'pointer' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (payload && payload.email) {
-            setSelectedPersonChart(payload.email);
-          }
-        }}
-      />
-    // );
-  // };
 
   // Estados para filtros
   const [subVista, setSubVista] = useState<'desempeno' | 'equipo'>('desempeno');

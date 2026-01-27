@@ -1,7 +1,7 @@
 // src/context/AppContext.tsx
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { User, Evaluation, SkillMatrix, ApiResponse } from '../types';
+import type { User, Evaluation, SkillMatrix, ApiResponse, UserRole } from '../types';
 
 interface AppContextType {
   users: User[];

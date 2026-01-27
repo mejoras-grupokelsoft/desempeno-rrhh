@@ -4,8 +4,8 @@ import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChar
 import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado } from '../utils/calculations';
 import { getUniqueAreas, getUniqueEvaluados } from '../utils/filters';
-import { filterByPeriod, calcularTopSkillChanges, calcularTendenciaSeniority, calcularSaltoDeNivel, calcularHardSoftStack, calcularBandasSeniority, calcularMatrizCierreBrecha, PERIODOS, type PeriodoType } from '../utils/dateUtils';
-import { calcularDesgloseSkills, compararSkillsPorPeriodo } from '../utils/newChartCalculations';
+import { filterByPeriod, calcularTendenciaSeniority, calcularBandasSeniority, PERIODOS, type PeriodoType } from '../utils/dateUtils';
+import { compararSkillsPorPeriodo } from '../utils/newChartCalculations';
 import { SkillBreakdownInline } from './SkillBreakdown';
 import type { Seniority } from '../types';
 
@@ -24,7 +24,7 @@ interface MetricasRRHHProps {
   onSelectPersona?: (email: string) => void; // Callback para cambiar a vista individual
 }
 
-export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPersona }: MetricasRRHHProps) {
+export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasRRHHProps): React.ReactElement {
   // Estados para filtros
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
@@ -290,33 +290,6 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
     return Array.from(personasMap.values());
   }, [filteredEvaluations]);
 
-  // Filtrar personas según área seleccionada (respetando filtro global)
-  // const personasAnalistas = useMemo(() => {
-    let personas = todasPersonasAnalistas;
-    // Aplicar filtro global de área si existe
-    if (selectedArea) {
-      personas = personas.filter(p => p.areas.includes(selectedArea));
-    }
-    // Aplicar filtro específico de carrusel
-    if (selectedAreaAnalista) {
-      personas = personas.filter(p => p.areas.includes(selectedAreaAnalista));
-    }
-    return personas;
-  // }, [todasPersonasAnalistas, selectedAreaAnalista, selectedArea]);
-
-  // const personasLideres = useMemo(() => {
-    let personas = todasPersonasLideres;
-    // Aplicar filtro global de área si existe
-    if (selectedArea) {
-      personas = personas.filter(p => p.areas.includes(selectedArea));
-    }
-    // Aplicar filtro específico de carrusel
-    if (selectedAreaLider) {
-      personas = personas.filter(p => p.areas.includes(selectedAreaLider));
-    }
-    return personas;
-  // }, [todasPersonasLideres, selectedAreaLider, selectedArea]);
-
   // Obtener áreas únicas según persona seleccionada
   const areasAnalistas = useMemo(() => {
     if (selectedPersonaAnalista) {
@@ -361,66 +334,6 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
     }
   }, [selectedArea]);
 
-  // NUEVOS GRÁFICOS DE EVOLUCIÓN
-
-  // 1. Gráfico de "Salto de Nivel" (Barras Agrupadas Q1 vs Q2)
-  // const saltoNivelAnalistas = useMemo(() => {
-    const targetSkills = skillsMatrix
-      .filter(s => s.seniority === 'Semi Senior')
-      .map(s => ({ skill: s.skill, valorEsperado: s.valorEsperado }));
-    
-    let evals = filteredEvaluations.filter(e => e.origen === 'ANALISTA');
-    
-    // Solo aplicar filtro de carrusel si NO hay filtro global
-    if (!selectedArea && selectedAreaAnalista) {
-      evals = evals.filter(e => e.area === selectedAreaAnalista);
-    }
-    
-    const userEmail = selectedPersonaAnalista || undefined;
-    return calcularSaltoDeNivel(evals, targetSkills, userEmail, 'ANALISTA');
-  // }, [filteredEvaluations, skillsMatrix, selectedPersonaAnalista, selectedAreaAnalista, selectedArea]);
-
-  // const saltoNivelLideres = useMemo(() => {
-    const targetSkills = skillsMatrix
-      .filter(s => s.seniority === 'Senior')
-      .map(s => ({ skill: s.skill, valorEsperado: s.valorEsperado }));
-    
-    let evals = filteredEvaluations.filter(e => e.origen === 'LIDER');
-    
-    // Solo aplicar filtro de carrusel si NO hay filtro global
-    if (!selectedArea && selectedAreaLider) {
-      evals = evals.filter(e => e.area === selectedAreaLider);
-    }
-    
-    const userEmail = selectedPersonaLider || undefined;
-    return calcularSaltoDeNivel(evals, targetSkills, userEmail, 'LIDER');
-  // }, [filteredEvaluations, skillsMatrix, selectedPersonaLider, selectedAreaLider, selectedArea]);
-
-  // 2. Barras Apiladas "Hard + Soft"
-  // const hardSoftAnalistas = useMemo(() => {
-    let evals = filteredEvaluations.filter(e => e.origen === 'ANALISTA');
-    
-    // Solo aplicar filtro de carrusel si NO hay filtro global
-    if (!selectedArea && selectedAreaAnalista) {
-      evals = evals.filter(e => e.area === selectedAreaAnalista);
-    }
-    
-    const userEmail = selectedPersonaAnalista || undefined;
-    return calcularHardSoftStack(evals, 3.0, userEmail, 'ANALISTA'); // Semi Senior target
-  // }, [filteredEvaluations, selectedPersonaAnalista, selectedAreaAnalista, selectedArea]);
-
-  // const hardSoftLideres = useMemo(() => {
-    let evals = filteredEvaluations.filter(e => e.origen === 'LIDER');
-    
-    // Solo aplicar filtro de carrusel si NO hay filtro global
-    if (!selectedArea && selectedAreaLider) {
-      evals = evals.filter(e => e.area === selectedAreaLider);
-    }
-    
-    const userEmail = selectedPersonaLider || undefined;
-    return calcularHardSoftStack(evals, 4.0, userEmail, 'LIDER'); // Senior target
-  // }, [filteredEvaluations, selectedPersonaLider, selectedAreaLider, selectedArea]);
-
   // 3. Gráfico de Bandas de Seniority
   const bandasAnalistas = useMemo(() => {
     let evals = filteredEvaluations.filter(e => e.origen === 'ANALISTA');
@@ -446,16 +359,6 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
     return calcularBandasSeniority(evals, userEmail, 'LIDER');
   }, [filteredEvaluations, selectedPersonaLider, selectedAreaLider, selectedArea]);
 
-  // Calcular desglose de skills cuando hay persona seleccionada
-  // const desgloseSkills = useMemo(() => {
-    // if (!drillDownPersona) return null;
-    
-    // return calcularDesgloseSkills(
-      // filteredEvaluations as any,
-      // drillDownPersona.email
-    // );
-  // }, [filteredEvaluations, drillDownPersona]);
-
   // Comparación de skills por periodos personalizados
   const skillsComparacionAnalistas = useMemo(() => {
     if (!drillDownPersona || drillDownPersona.origen !== 'ANALISTA') return [];
@@ -480,15 +383,6 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
     );
     return result;
   }, [filteredEvaluations, drillDownPersona, periodoALideres, periodoBLideres]);
-
-  // const matrizCierreBrecha = useMemo(() => {
-    // return calcularMatrizCierreBrecha(filteredEvaluations);
-  // }, [filteredEvaluations]);
-
-  // Top 5 skills que más cambiaron (se mantiene para el dashboard)
-  // const topSkillChanges = useMemo(() => {
-    // return calcularTopSkillChanges(filteredEvaluations);
-  // }, [filteredEvaluations]);
 
   // Tendencias por seniority (para las cards)
   const tendencias = useMemo(() => {
@@ -1199,7 +1093,7 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
       {/* DESGLOSE INLINE DE SKILLS POR PERSONA */}
       {drillDownPersona && drillDownPersona.origen === 'ANALISTA' && skillsComparacionAnalistas.length > 0 && (
         <SkillBreakdownInline
-          personaNombre={drillDownPersona.nombre}
+          personaNombre={drillDownPersona?.nombre ?? ''}
           skills={skillsComparacionAnalistas}
           periodoA="Anterior (más de 3 meses)"
           periodoB="Actual (últimos 3 meses)"
@@ -1207,7 +1101,7 @@ export default function MetricasRRHH({ evaluations, skillsMatrix, onSelectPerson
       )}
       {drillDownPersona && drillDownPersona.origen === 'LIDER' && skillsComparacionLideres.length > 0 && (
         <SkillBreakdownInline
-          personaNombre={drillDownPersona.nombre}
+          personaNombre={drillDownPersona?.nombre ?? ''}
           skills={skillsComparacionLideres}
           periodoA="Anterior (más de 3 meses)"
           periodoB="Actual (últimos 3 meses)"
