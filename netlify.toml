@@ -1,0 +1,35 @@
+# Configuración de despliegue de Netlify
+[build]
+  # Comando para construir el proyecto
+  command = "npm run build"
+  
+  # Directorio donde está el build final
+  publish = "dist"
+  
+  # Variables de entorno necesarias (configurar en Netlify UI)
+  # VITE_GOOGLE_SCRIPT_URL
+  # VITE_GOOGLE_CLIENT_ID
+  # VITE_APP_TITLE
+  # VITE_APP_VERSION
+  # VITE_ENABLE_DEBUG
+  # VITE_API_TIMEOUT
+
+# Desactivar escaneo de secretos en archivos de dependencias
+# Los valores detectados son URLs de npm registry, no secretos reales
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = "package-lock.json"
+
+# Redirecciones para React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers de seguridad
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
