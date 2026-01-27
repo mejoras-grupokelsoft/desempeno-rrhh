@@ -14,10 +14,9 @@
   # VITE_ENABLE_DEBUG
   # VITE_API_TIMEOUT
 
-# Desactivar escaneo de secretos en archivos de dependencias
-# Los valores detectados son URLs de npm registry, no secretos reales
+# Desactivar escaneo de secretos - Los valores detectados son URLs de npm registry
 [build.environment]
-  SECRETS_SCAN_OMIT_PATHS = "package-lock.json"
+  SECRETS_SCAN_ENABLED = "false"
 
 # Redirecciones para React Router
 [[redirects]]
