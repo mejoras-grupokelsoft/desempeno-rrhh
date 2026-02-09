@@ -32,9 +32,9 @@ const CustomTooltip = ({ active, payload }: any) => {
         {payload.map((entry: any) => {
           const colors: Record<string, string> = {
             'Seniority Esperado': 'text-stone-500',
-            'Autoevaluación': 'text-slate-700',
-            'Evaluación Líder': 'text-orange-600',
-            'Promedio Final': 'text-orange-700'
+            'Autoevaluación': 'text-blue-700',
+            'Evaluación Líder': 'text-cyan-600',
+            'Promedio Final': 'text-red-600'
           };
           
           return (
@@ -141,33 +141,33 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
             strokeDasharray="4 4"
           />
 
-          {/* Pentágono Autoevaluación - Slate */}
+          {/* Pentágono Autoevaluación - Azul más oscuro para mejor contraste */}
           <Radar
             name="Autoevaluación"
             dataKey="auto"
-            stroke="#475569"
-            fill="#475569"
-            fillOpacity={0.15}
+            stroke="#1e40af"
+            fill="#3b82f6"
+            fillOpacity={0.20}
             strokeWidth={2}
           />
 
-          {/* Pentágono Evaluación Líder - Orange */}
+          {/* Pentágono Evaluación Líder - Verde azulado para diferenciación */}
           <Radar
             name="Evaluación Líder"
             dataKey="jefe"
-            stroke="#f97316"
-            fill="#f97316"
+            stroke="#0891b2"
+            fill="#06b6d4"
             fillOpacity={0.25}
             strokeWidth={2}
           />
 
-          {/* Pentágono Promedio - Orange oscuro */}
+          {/* Pentágono Promedio - Orange vibrante para resaltar */}
           <Radar
             name="Promedio Final"
             dataKey="promedio"
-            stroke="#ea580c"
-            fill="#ea580c"
-            fillOpacity={0.1}
+            stroke="#dc2626"
+            fill="#ef4444"
+            fillOpacity={0.15}
             strokeWidth={3}
           />
 

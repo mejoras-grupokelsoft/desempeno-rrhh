@@ -130,8 +130,9 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
         ? evalsJefe.reduce((sum, e) => sum + e.puntaje, 0) / evalsJefe.length
         : 0;
 
+      // Promedio ponderado: 70% líder + 30% auto (si ambos existen)
       const promedioFinal = promedioAuto > 0 && promedioJefe > 0
-        ? (promedioAuto + promedioJefe) / 2
+        ? (promedioJefe * 0.70) + (promedioAuto * 0.30)
         : promedioAuto > 0 ? promedioAuto : promedioJefe;
 
       const gap = Math.abs(promedioAuto - promedioJefe);

@@ -1,6 +1,10 @@
 // src/utils/calculations.ts
 import type { Evaluation, SkillMatrix, RadarDataPoint, Seniority } from '../types';
 
+// Configuración de ponderación: % de peso para cada tipo de evaluación
+const PONDERACION_JEFE = 0.70;  // 70% peso del líder
+const PONDERACION_AUTO = 0.30;  // 30% peso de autoevaluación
+
 /**
  * Calcula el promedio de puntajes para un tipo de evaluador y skill específica
  */
@@ -57,7 +61,10 @@ export function transformarARadarData(
   return skills.map((skill) => {
     const auto = calcularPromedio(evaluations, 'AUTO', skill);
     const jefe = calcularPromedio(evaluations, 'JEFE', skill);
-    const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : auto > 0 ? auto : jefe;
+    // Promedio ponderado: 70% líder + 30% auto (si ambos existen)
+    const promedio = auto > 0 && jefe > 0 
+      ? (jefe * PONDERACION_JEFE) + (auto * PONDERACION_AUTO)
+      : auto > 0 ? auto : jefe;
     const esperado = obtenerValorEsperado(skillsMatrix, skill, seniorityEsperado, rol, area);
 
     return {

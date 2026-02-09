@@ -5,7 +5,7 @@ import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado } from '../utils/calculations';
 import { getUniqueEvaluados } from '../utils/filters';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
-import { transformarARadarData, calcularPromedioGeneral, determinarEstado } from '../utils/calculations';
+import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
 import RadarChart from '../components/RadarChart';
 import type { Seniority } from '../types';
@@ -196,11 +196,6 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const miSeniorityAlcanzado = useMemo(
     () => calcularSeniorityAlcanzado(miPromedioGeneral),
     [miPromedioGeneral]
-  );
-
-  const miEstado = useMemo(
-    () => determinarEstado(miSeniorityAlcanzado, seniorityEsperado),
-    [miSeniorityAlcanzado, seniorityEsperado]
   );
 
   // Comparación trimestral propia
@@ -445,7 +440,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         </h2>
 
         {/* Métricas Propias */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
             <p className="text-4xl font-bold text-slate-900">{miPromedioGeneral.toFixed(2)}</p>
@@ -457,20 +452,6 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Esperado</p>
             <p className="text-2xl font-bold text-slate-700">{seniorityEsperado}</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-            <p className="text-sm font-semibold text-stone-500 mb-2">Estado</p>
-            <p
-              className={`text-2xl font-bold ${
-                miEstado === 'Superó'
-                  ? 'text-purple-600'
-                  : miEstado === 'Cumple'
-                  ? 'text-slate-700'
-                  : 'text-stone-400'
-              }`}
-            >
-              {miEstado}
-            </p>
           </div>
         </div>
 

@@ -522,7 +522,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-stone-500">{com.fecha}</span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">
-                        {com.puntaje}/5
+                        {com.puntaje}/4
                       </span>
                     </div>
                   </div>

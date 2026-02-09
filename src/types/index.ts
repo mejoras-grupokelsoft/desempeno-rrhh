@@ -21,7 +21,7 @@ export interface Evaluation {
   tipoEvaluador: EvaluatorType;
   skillTipo: SkillType;
   skillNombre: string;
-  puntaje: 1 | 2 | 3 | 4 | 5;
+  puntaje: 1 | 2 | 3 | 4;
   area: string;
   origen: 'ANALISTA' | 'LIDER';
   comentarios?: string; // ⭐ NUEVA: Comentarios sobre hard skills (opcional)
