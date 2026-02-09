@@ -148,8 +148,10 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
         : 0;
 
       // Promedio ponderado: 70% líder + 30% auto (si ambos existen)
+      // IMPORTANTE: El resultado nunca puede ser mayor al puntaje del líder
+      const promedioPonderado = (promedioJefe * 0.70) + (promedioAuto * 0.30);
       const promedioFinal = promedioAuto > 0 && promedioJefe > 0
-        ? (promedioJefe * 0.70) + (promedioAuto * 0.30)
+        ? Math.min(promedioPonderado, promedioJefe)
         : promedioAuto > 0 ? promedioAuto : promedioJefe;
 
       const gap = Math.abs(promedioAuto - promedioJefe);

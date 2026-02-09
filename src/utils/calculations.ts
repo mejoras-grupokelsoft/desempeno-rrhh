@@ -62,8 +62,10 @@ export function transformarARadarData(
     const auto = calcularPromedio(evaluations, 'AUTO', skill);
     const jefe = calcularPromedio(evaluations, 'JEFE', skill);
     // Promedio ponderado: 70% líder + 30% auto (si ambos existen)
+    // IMPORTANTE: El resultado nunca puede ser mayor al puntaje del líder
+    const promedioPonderado = (jefe * PONDERACION_JEFE) + (auto * PONDERACION_AUTO);
     const promedio = auto > 0 && jefe > 0 
-      ? (jefe * PONDERACION_JEFE) + (auto * PONDERACION_AUTO)
+      ? Math.min(promedioPonderado, jefe)
       : auto > 0 ? auto : jefe;
     const esperado = obtenerValorEsperado(skillsMatrix, skill, seniorityEsperado, rol, area);
 
