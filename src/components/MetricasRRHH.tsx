@@ -34,6 +34,9 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
   const [selectedSeniority, setSelectedSeniority] = useState<Seniority | ''>('');
   const [selectedFormulario, setSelectedFormulario] = useState<'LIDER' | 'ANALISTA' | ''>('');
   const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodoType>('HISTORICO');
+  const [filtroModo, setFiltroModo] = useState<'periodo' | 'rango'>('periodo');
+  const [fechaInicio, setFechaInicio] = useState<string>('');
+  const [fechaFin, setFechaFin] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -50,8 +53,22 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
 
   // Aplicar filtros
   const filteredEvaluations = useMemo(() => {
-    // Primero filtrar por período
-    let result = filterByPeriod(evaluations, selectedPeriodo);
+    // Primero filtrar por período o rango personalizado
+    let result: Evaluation[];
+    
+    if (filtroModo === 'periodo') {
+      result = filterByPeriod(evaluations, selectedPeriodo);
+    } else if (filtroModo === 'rango' && fechaInicio && fechaFin) {
+      result = evaluations.filter(e => {
+        const fecha = new Date(e.fecha);
+        const inicio = new Date(fechaInicio);
+        const fin = new Date(fechaFin);
+        fin.setHours(23, 59, 59, 999); // Incluir todo el día final
+        return fecha >= inicio && fecha <= fin;
+      });
+    } else {
+      result = evaluations; // Si rango no está completo, mostrar todo
+    }
 
     if (selectedArea) {
       result = result.filter((e) => e.area === selectedArea);
@@ -66,7 +83,7 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
     }
 
     return result;
-  }, [evaluations, selectedArea, selectedEmail, selectedFormulario, selectedPeriodo]);
+  }, [evaluations, selectedArea, selectedEmail, selectedFormulario, selectedPeriodo, filtroModo, fechaInicio, fechaFin]);
 
   // Obtener datos para filtros (con cascada)
   const areas = useMemo(() => {
@@ -425,21 +442,73 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
           {!filtrosCollapsed && (
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-stone-800 mb-2">
-                Período
+            <div className="col-span-full">
+              <label className="block text-sm font-semibold text-stone-800 mb-3">
+                Filtro Temporal
               </label>
-              <select
-                value={selectedPeriodo}
-                onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
-                className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-              >
-                {PERIODOS.map((periodo) => (
-                  <option key={periodo.value} value={periodo.value}>
-                    {periodo.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <button
+                  onClick={() => setFiltroModo('periodo')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                    filtroModo === 'periodo'
+                      ? 'bg-orange-600 text-white shadow-md'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
+                  }`}
+                >
+                  📅 Periodos Predefinidos
+                </button>
+                <button
+                  onClick={() => setFiltroModo('rango')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                    filtroModo === 'rango'
+                      ? 'bg-orange-600 text-white shadow-md'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
+                  }`}
+                >
+                  🗓️ Rango Personalizado
+                </button>
+              </div>
+
+              {filtroModo === 'periodo' ? (
+                <select
+                  value={selectedPeriodo}
+                  onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
+                  className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
+                >
+                  {PERIODOS.map((periodo) => (
+                    <option key={periodo.value} value={periodo.value}>
+                      {periodo.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
+                      Fecha Desde
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaInicio}
+                      onChange={(e) => setFechaInicio(e.target.value)}
+                      max={fechaFin || undefined}
+                      className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
+                      Fecha Hasta
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaFin}
+                      onChange={(e) => setFechaFin(e.target.value)}
+                      min={fechaInicio || undefined}
+                      className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
