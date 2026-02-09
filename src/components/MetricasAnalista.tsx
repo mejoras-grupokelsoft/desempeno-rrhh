@@ -114,7 +114,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     [promedioFinal]
   );
 
-  // Evolución temporal (últimos 6 meses)
+  // Evolución temporal (últimos 6 meses) - Solo mostrar si hay más de un periodo
   const evolucionTemporal = useMemo(() => {
     const meses: { [key: string]: { auto: number[], jefe: number[] } } = {};
     
@@ -133,7 +133,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
       }
     });
 
-    return Object.keys(meses)
+    const datos = Object.keys(meses)
       .sort()
       .slice(-6)
       .map(mesKey => {
@@ -152,6 +152,9 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
           promedio: (avgAuto && avgJefe) ? parseFloat(((avgAuto + avgJefe) / 2).toFixed(2)) : null
         };
       });
+    
+    // Solo devolver datos si hay más de un periodo (permite comparación temporal)
+    return datos.length > 1 ? datos : [];
   }, [evaluacionesPropias]);
 
   // Fortalezas y áreas de mejora
@@ -443,6 +446,32 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                 <Line type="monotone" dataKey="promedio" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} name="Promedio" />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Mensaje informativo para primera evaluación */}
+        {evaluacionesPropias.length > 0 && evolucionTemporal.length === 0 && (
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border-2 border-purple-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="text-lg font-bold text-purple-900 mb-2">🎯 ¡Bienvenido a tu primera evaluación!</h4>
+                <p className="text-sm text-purple-800 mb-3">
+                  Este es tu punto de partida en el proceso de evaluación de desempeño. A partir de ahora, podrás seguir 
+                  tu progreso y ver cómo evolucionan tus competencias a lo largo del tiempo.
+                </p>
+                <div className="bg-white/80 rounded-lg p-3 border border-purple-100">
+                  <p className="text-xs text-stone-600">
+                    💡 <strong>Tip:</strong> En tu próxima evaluación (dentro de 6 meses), esta vista mostrará gráficos de evolución 
+                    donde podrás comparar tus resultados actuales con los de hoy. ¡Seguí trabajando en tu desarrollo profesional!
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
