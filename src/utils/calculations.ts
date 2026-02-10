@@ -1,5 +1,5 @@
 // src/utils/calculations.ts
-import type { Evaluation, SkillMatrix, RadarDataPoint, Seniority } from '../types';
+import type { Evaluation, SkillMatrix, RadarDataPoint, Seniority, EvolucionDataPoint } from '../types';
 
 // Configuración de ponderación: % de peso para cada tipo de evaluación
 const PONDERACION_JEFE = 0.70;  // 70% peso del líder
@@ -96,4 +96,108 @@ export function calcularPromedioGeneral(data: RadarDataPoint[]): number {
   if (data.length === 0) return 0;
   const sum = data.reduce((acc, d) => acc + d.promedio, 0);
   return sum / data.length;
+}
+
+/**
+ * Determina el estado comparando seniority alcanzado vs esperado
+ */
+export function determinarEstado(
+  seniorityAlcanzado: Seniority,
+  seniorityEsperado: Seniority
+): 'Cumple' | 'No Cumple' | 'Superó' {
+  const niveles: Seniority[] = ['Trainee', 'Junior', 'Semi Senior', 'Senior'];
+  const idxAlcanzado = niveles.indexOf(seniorityAlcanzado);
+  const idxEsperado = niveles.indexOf(seniorityEsperado);
+
+  if (idxAlcanzado > idxEsperado) return 'Superó';
+  if (idxAlcanzado === idxEsperado) return 'Cumple';
+  return 'No Cumple';
+}
+
+/**
+ * Calcula la evolución trimestral de una persona para el gráfico de líneas con bandas de seniority.
+ * Agrupa evaluaciones por trimestre y calcula auto, jefe, promedio ponderado, y esperado.
+ */
+export function calcularEvolucionTrimestral(
+  evaluations: Evaluation[],
+  skillsMatrix: SkillMatrix[],
+  seniorityEsperado: string,
+  area: string
+): EvolucionDataPoint[] {
+  if (evaluations.length === 0) return [];
+
+  // Agrupar evaluaciones por trimestre
+  const porTrimestre = new Map<string, Evaluation[]>();
+
+  evaluations.forEach(e => {
+    const date = new Date(e.fecha);
+    const year = date.getFullYear();
+    const quarter = Math.floor(date.getMonth() / 3) + 1;
+    const key = `${year}-Q${quarter}`;
+
+    if (!porTrimestre.has(key)) {
+      porTrimestre.set(key, []);
+    }
+    porTrimestre.get(key)!.push(e);
+  });
+
+  // Calcular esperado promedio (constante, basado en las skills evaluadas)
+  const skillsEvaluadas = new Set(evaluations.map(e => e.skillNombre));
+  let sumEsperado = 0;
+  let countEsperado = 0;
+  skillsEvaluadas.forEach(skillNombre => {
+    // Buscar en skillsMatrix con diferentes roles (Líder y Analista)
+    const match = skillsMatrix.find(
+      s => s.skillNombre === skillNombre && s.seniority === seniorityEsperado && s.area === area
+    );
+    if (match) {
+      sumEsperado += match.valorEsperado;
+      countEsperado++;
+    }
+  });
+  const esperadoPromedio = countEsperado > 0 ? sumEsperado / countEsperado : 0;
+
+  // Procesar cada trimestre
+  const resultado: EvolucionDataPoint[] = [];
+
+  porTrimestre.forEach((evals, key) => {
+    // Calcular promedios de AUTO y JEFE
+    const autoPuntajes = evals.filter(e => e.tipoEvaluador === 'AUTO').map(e => e.puntaje);
+    const jefePuntajes = evals.filter(e => e.tipoEvaluador === 'JEFE').map(e => e.puntaje);
+
+    const autoPromedio = autoPuntajes.length > 0
+      ? autoPuntajes.reduce((a, b) => a + b, 0) / autoPuntajes.length
+      : 0;
+    const jefePromedio = jefePuntajes.length > 0
+      ? jefePuntajes.reduce((a, b) => a + b, 0) / jefePuntajes.length
+      : 0;
+
+    // Promedio ponderado consistente con la lógica existente
+    const promedio = autoPromedio > 0 && jefePromedio > 0
+      ? (jefePromedio * PONDERACION_JEFE) + (autoPromedio * PONDERACION_AUTO)
+      : autoPromedio > 0 ? autoPromedio : jefePromedio;
+
+    // Formatear label del trimestre
+    const [year, q] = key.split('-');
+    const trimestre = `${q} ${year}`;
+
+    resultado.push({
+      trimestre,
+      auto: autoPromedio,
+      jefe: jefePromedio,
+      promedio,
+      esperado: esperadoPromedio,
+    });
+  });
+
+  // Ordenar cronológicamente
+  resultado.sort((a, b) => {
+    const parseKey = (t: string) => {
+      const [q, year] = t.split(' ');
+      return parseInt(year) * 10 + parseInt(q.replace('Q', ''));
+    };
+    return parseKey(a.trimestre) - parseKey(b.trimestre);
+  });
+
+  return resultado;
 }

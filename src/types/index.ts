@@ -52,6 +52,14 @@ export interface RadarDataPoint {
   promedio: number;
 }
 
+export interface EvolucionDataPoint {
+  trimestre: string;
+  auto: number;
+  jefe: number;
+  promedio: number;
+  esperado: number;
+}
+
 export interface ResultadoFinal {
   fecha: string;
   area: string;
