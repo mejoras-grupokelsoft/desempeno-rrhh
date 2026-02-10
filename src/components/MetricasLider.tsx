@@ -1315,7 +1315,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded"></div>
-                    <span className="text-stone-600">Cumple meta</span>
+                    <span className="text-stone-600">Dentro del rango</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 border-2 border-purple-600 border-dashed rounded"></div>

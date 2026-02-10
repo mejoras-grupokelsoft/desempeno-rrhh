@@ -61,5 +61,4 @@ export interface ResultadoFinal {
   seniorityInicial: Seniority;
   seniorityAlcanzado: Seniority;
   promedioGeneral: number;
-  estado: 'Cumple' | 'No Cumple' | 'Superó';
 }

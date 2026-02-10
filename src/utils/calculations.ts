@@ -97,19 +97,3 @@ export function calcularPromedioGeneral(data: RadarDataPoint[]): number {
   const sum = data.reduce((acc, d) => acc + d.promedio, 0);
   return sum / data.length;
 }
-
-/**
- * Determina el estado comparando seniority alcanzado vs esperado
- */
-export function determinarEstado(
-  seniorityAlcanzado: Seniority,
-  seniorityEsperado: Seniority
-): 'Cumple' | 'No Cumple' | 'Superó' {
-  const niveles: Seniority[] = ['Trainee', 'Junior', 'Semi Senior', 'Senior'];
-  const idxAlcanzado = niveles.indexOf(seniorityAlcanzado);
-  const idxEsperado = niveles.indexOf(seniorityEsperado);
-
-  if (idxAlcanzado > idxEsperado) return 'Superó';
-  if (idxAlcanzado === idxEsperado) return 'Cumple';
-  return 'No Cumple';
-}

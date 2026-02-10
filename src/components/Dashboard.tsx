@@ -6,7 +6,6 @@ import {
   transformarARadarData,
   calcularPromedioGeneral,
   calcularSeniorityAlcanzado,
-  determinarEstado,
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import RadarChart from '../components/RadarChart';
@@ -226,10 +225,7 @@ export default function Dashboard() {
     () => calcularSeniorityAlcanzado(promedioGeneral),
     [promedioGeneral]
   );
-  const estado = useMemo(
-    () => determinarEstado(seniorityAlcanzado, seniorityEsperado),
-    [seniorityAlcanzado, seniorityEsperado]
-  );
+
 
   // Comparación trimestral (Q anterior vs Q actual) solo si hay un evaluado seleccionado
   const comparacionTrimestral = useMemo(() => {
@@ -549,7 +545,7 @@ export default function Dashboard() {
 
             {/* Métricas */}
             {filteredEvaluations.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
                   <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
                   <p className="text-4xl font-bold text-slate-900">{promedioGeneral.toFixed(2)}</p>
@@ -561,20 +557,6 @@ export default function Dashboard() {
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
                   <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Esperado</p>
                   <p className="text-2xl font-bold text-slate-700">{seniorityEsperado}</p>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-                  <p className="text-sm font-semibold text-stone-500 mb-2">Estado</p>
-                  <p
-                    className={`text-2xl font-bold ${
-                      estado === 'Superó'
-                        ? 'text-orange-600'
-                        : estado === 'Cumple'
-                        ? 'text-slate-700'
-                        : 'text-stone-400'
-                    }`}
-                  >
-                    {estado}
-                  </p>
                 </div>
               </div>
             )}
