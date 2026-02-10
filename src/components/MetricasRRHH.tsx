@@ -2,12 +2,13 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area, Scatter } from 'recharts';
 import type { Evaluation, User } from '../types';
-import { calcularSeniorityAlcanzado } from '../utils/calculations';
+import { calcularSeniorityAlcanzado, transformarARadarData } from '../utils/calculations';
 import { getUniqueAreas, getUniqueEvaluados } from '../utils/filters';
 import { filterByPeriod, calcularTendenciaSeniority, calcularBandasSeniority, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { compararSkillsPorPeriodo } from '../utils/newChartCalculations';
 import { SkillBreakdownInline } from './SkillBreakdown';
 import type { Seniority } from '../types';
+import { generarPDFIndividual, generarPDFConsolidado } from '../utils/pdfGenerator';
 
 // Función para normalizar texto (sin acentos, minúsculas)
 const normalizeText = (text: string): string => {
@@ -24,7 +25,7 @@ interface MetricasRRHHProps {
   onSelectPersona?: (email: string) => void; // Callback para cambiar a vista individual
 }
 
-export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasRRHHProps): React.ReactElement {
+export default function MetricasRRHH({ evaluations }: MetricasRRHHProps): React.ReactElement {
   // Estados para filtros
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
@@ -257,6 +258,11 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
     origen: 'ANALISTA' | 'LIDER';
   } | null>(null);
   
+  // Estados para modal de PDF
+  const [modalPDFAbierto, setModalPDFAbierto] = useState<boolean>(false);
+  const [personaParaPDF, setPersonaParaPDF] = useState<any>(null);
+  const [comentarioRRHH, setComentarioRRHH] = useState<string>('');
+  
   // Selectores de periodos para comparación
   const [periodoAAnalistas] = useState<string>('Q1');
   const [periodoBAnalistas] = useState<string>('Q2');
@@ -418,6 +424,91 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
       Senior: calcularTendenciaSeniority(evaluations, usersBySeniority, 'Senior'),
     };
   }, [evaluations, resultadosPorPersona]);
+
+  // Función para abrir modal PDF con datos de persona
+  const handleAbrirModalPDF = (persona: any) => {
+    setPersonaParaPDF(persona);
+    setComentarioRRHH('');
+    setModalPDFAbierto(true);
+  };
+
+  // Función para generar PDF individual
+  const handleGenerarPDFIndividual = (enviarEmail: boolean = false) => {
+    if (!personaParaPDF) return;
+
+    // Obtener evaluaciones de esta persona
+    const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
+    
+    // Preparar datos del radar
+    const radarData = transformarARadarData(
+      evalsPersona,
+      [],
+      personaParaPDF.seniorityAlcanzado,
+      personaParaPDF.rol,
+      personaParaPDF.area
+    );
+
+    // Obtener nombre del evaluador (líder) - usar evaluadoNombre del JEFE
+    const evaluadorNombre = 'Evaluador RRHH'; // Placeholder - ajustar según modelo de datos
+
+    // Fecha de evaluación más reciente
+    const fechas = evalsPersona.map(e => new Date(e.fecha));
+    const fechaMasReciente = new Date(Math.max(...fechas.map(f => f.getTime())));
+
+    const pdfData = {
+      evaluadoNombre: personaParaPDF.nombre,
+      evaluadoEmail: personaParaPDF.email,
+      area: personaParaPDF.area,
+      rol: personaParaPDF.rol,
+      seniorityEsperado: personaParaPDF.seniorityEsperado || 'N/D',
+      seniorityAlcanzado: personaParaPDF.seniorityAlcanzado,
+      promedioGeneral: personaParaPDF.promedioFinal,
+      gapAutoLider: personaParaPDF.gap,
+      fechaEvaluacion: fechaMasReciente.toLocaleDateString('es-AR'),
+      evaluadorNombre,
+      radarData,
+      comentarioRRHH: comentarioRRHH.trim()
+    };
+
+    const pdf = generarPDFIndividual(pdfData);
+    
+    // Descargar el PDF
+    const nombreArchivo = `Evaluacion_${personaParaPDF.nombre.replace(/\s+/g, '_')}_${fechaMasReciente.getFullYear()}.pdf`;
+    pdf.save(nombreArchivo);
+
+    // Si se seleccionó enviar por email, mostrar mensaje
+    if (enviarEmail) {
+      alert(`✅ PDF generado: ${nombreArchivo}\n\nPara enviar por email:\n1. El PDF se descargó en tu computadora\n2. Adjúntalo manualmente a un email desde tu cliente de correo\n3. Destinatario: ${personaParaPDF.email}`);
+    }
+
+    // Cerrar modal
+    setModalPDFAbierto(false);
+    setComentarioRRHH('');
+  };
+
+  // Función para generar PDF consolidado
+  const handleGenerarPDFConsolidado = () => {
+    const area = selectedArea || 'Todas las áreas';
+    const periodoLabel = selectedPeriodo === 'HISTORICO' ? 'Histórico (Todo)' : 
+                         selectedPeriodo === 'ESTE_ANO' ? 'Este Año' :
+                         selectedPeriodo === 'Q_ANTERIOR' ? 'Q Anterior' : 'Personalizado';
+    
+    // Calcular promedio general del área
+    const promedioArea = resultadosPorPersona.length > 0
+      ? resultadosPorPersona.reduce((sum, p) => sum + p.promedioFinal, 0) / resultadosPorPersona.length
+      : 0;
+    
+    const pdf = generarPDFConsolidado(
+      area,
+      periodoLabel,
+      filteredEvaluations,
+      promedioArea,
+      resultadosPorPersona.length
+    );
+
+    const nombreArchivo = `Reporte_Consolidado_${area.replace(/\s+/g, '_')}_${periodoLabel.replace(/\s+/g, '_')}.pdf`;
+    pdf.save(nombreArchivo);
+  };
 
   return (
     <div className="space-y-6">
@@ -613,14 +704,25 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
 
       {/* Métricas Generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-            <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            Resumen General
+          </h2>
+          <button
+            onClick={handleGenerarPDFConsolidado}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold shadow-md hover:shadow-lg"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          </div>
-          Resumen General
-        </h2>
+            Reporte Consolidado PDF
+          </button>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-5 border border-stone-100">
             <p className="text-sm font-semibold text-stone-500 mb-1">Total Evaluados</p>
@@ -1200,14 +1302,14 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
               <th className="text-center p-3 font-bold text-stone-700">Final</th>
               <th className="text-center p-3 font-bold text-stone-700">Seniority</th>
               <th className="text-center p-3 font-bold text-stone-700">Gap</th>
+              <th className="text-center p-3 font-bold text-stone-700">PDF</th>
             </tr>
           </thead>
           <tbody>
             {paginatedResultados.map((persona) => (
               <tr 
                 key={persona.email} 
-                onClick={() => onSelectPersona && onSelectPersona(persona.email)}
-                className="border-b border-stone-100 hover:bg-orange-50 transition cursor-pointer"
+                className="border-b border-stone-100 hover:bg-orange-50 transition"
               >
                 <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
                 <td className="p-3 text-stone-600">{persona.area}</td>
@@ -1242,6 +1344,21 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
                   }`}>
                     {persona.gap.toFixed(2)}
                   </span>
+                </td>
+                <td className="text-center p-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAbrirModalPDF(persona);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold text-xs shadow-sm hover:shadow-md"
+                    title="Generar PDF individual"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    PDF
+                  </button>
                 </td>
               </tr>
             ))}
@@ -1288,6 +1405,106 @@ export default function MetricasRRHH({ evaluations, onSelectPersona }: MetricasR
           </div>
         )}
       </div>
+
+      {/* Modal para generar PDF con comentario */}
+      {modalPDFAbierto && personaParaPDF && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Generar PDF Individual</h3>
+                <p className="text-sm text-stone-600 mt-1">Evaluación de {personaParaPDF.nombre}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setModalPDFAbierto(false);
+                  setComentarioRRHH('');
+                }}
+                className="text-stone-400 hover:text-stone-600 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Preview de datos */}
+            <div className="bg-stone-50 rounded-xl p-4 mb-6 border border-stone-200">
+              <h4 className="text-sm font-bold text-stone-700 mb-3">Datos que se incluirán en el PDF:</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-stone-500">Email:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.email}</p>
+                </div>
+                <div>
+                  <span className="text-stone-500">Área:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.area}</p>
+                </div>
+                <div>
+                  <span className="text-stone-500">Rol:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.rol}</p>
+                </div>
+                <div>
+                  <span className="text-stone-500">Promedio Final:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.promedioFinal.toFixed(2)} / 4.0</p>
+                </div>
+                <div>
+                  <span className="text-stone-500">Seniority Alcanzado:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.seniorityAlcanzado}</p>
+                </div>
+                <div>
+                  <span className="text-stone-500">Gap Auto-Líder:</span>
+                  <p className="font-semibold text-slate-900">{personaParaPDF.gap.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Campo para comentario adicional */}
+            <div className="mb-6">
+              <label className="block text-sm font-bold text-stone-700 mb-2">
+                Comentario adicional de RRHH (opcional):
+              </label>
+              <textarea
+                value={comentarioRRHH}
+                onChange={(e) => setComentarioRRHH(e.target.value)}
+                placeholder="Ej: Felicitaciones por el excelente desempeño. Continuar con el plan de capacitación en..."
+                rows={4}
+                className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-sm"
+              />
+              <p className="text-xs text-stone-500 mt-1">
+                Este comentario aparecerá al final del PDF como feedback personalizado de Recursos Humanos.
+              </p>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleGenerarPDFIndividual(false)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-semibold"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Solo Descargar
+              </button>
+              <button
+                onClick={() => handleGenerarPDFIndividual(true)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Descargar + Instrucciones Email
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 mt-4 text-center">
+              💡 Tip: El botón "Instrucciones Email" te mostrará los datos del destinatario para que envíes manualmente desde tu cliente de correo.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
