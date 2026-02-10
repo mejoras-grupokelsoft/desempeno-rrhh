@@ -10,6 +10,7 @@ import {
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import RadarChart from '../components/RadarChart';
+import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import MetricasRRHH from '../components/MetricasRRHH';
 import MetricasLider from '../components/MetricasLider';
 import type { Seniority } from '../types';
@@ -266,6 +267,40 @@ export default function Dashboard() {
     }).sort((a, b) => b.mejora - a.mejora); // Ordenar por mejora descendente
   }, [comparacionTrimestral]);
 
+  // Datos para el Dumbbell Chart: combina comparación trimestral con esperado directo de skillsMatrix
+  const dumbbellData = useMemo((): DumbbellDataPoint[] => {
+    if (!comparacionTrimestral || !selectedEmail) return [];
+    const { qAnterior, qActual } = comparacionTrimestral;
+
+    const allSkills = new Set([
+      ...qAnterior.map(s => s.skill),
+      ...qActual.map(s => s.skill)
+    ]);
+
+    // Obtener area del usuario seleccionado
+    const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
+
+    return Array.from(allSkills).map(skill => {
+      const anterior = qAnterior.find(s => s.skill === skill);
+      const actual = qActual.find(s => s.skill === skill);
+
+      // Calcular esperado directamente desde skillsMatrix (no depende de filtros)
+      const matchSkill = skillsMatrix.find(
+        s => s.skillNombre === skill && s.seniority === seniorityEsperado && s.area === area
+      );
+
+      return {
+        skill,
+        autoAnterior: anterior?.auto || 0,
+        jefeAnterior: anterior?.jefe || 0,
+        autoActual: actual?.auto || 0,
+        jefeActual: actual?.jefe || 0,
+        esperado: matchSkill?.valorEsperado || 0,
+      };
+    });
+  }, [comparacionTrimestral, selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
+
   const handleResetFilters = () => {
     setSelectedArea('');
     setSelectedEmail('');
@@ -456,7 +491,6 @@ export default function Dashboard() {
                       value={selectedArea}
                       onChange={(e) => {
                         setSelectedArea(e.target.value);
-                        setSelectedEmail(''); // Reset evaluado cuando cambia área
                       }}
                       className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
                     >
@@ -577,6 +611,14 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
+            )}
+
+            {/* Dumbbell Chart - Brecha Auto vs Jefe (solo con persona seleccionada) */}
+            {selectedEmail && dumbbellData.length > 0 && (
+              <DumbbellChart
+                data={dumbbellData}
+                title={`Brecha Auto vs Lider${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
+              />
             )}
 
             {/* Gráficos Radar - 4 gráficos (Hard Líder, Hard Analista, Soft Líder, Soft Analista) */}
