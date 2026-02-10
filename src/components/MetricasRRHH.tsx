@@ -489,9 +489,8 @@ export default function MetricasRRHH({ evaluations }: MetricasRRHHProps): React.
   // Función para generar PDF consolidado
   const handleGenerarPDFConsolidado = () => {
     const area = selectedArea || 'Todas las áreas';
-    const periodoLabel = selectedPeriodo === 'HISTORICO' ? 'Histórico (Todo)' : 
-                         selectedPeriodo === 'ESTE_ANO' ? 'Este Año' :
-                         selectedPeriodo === 'Q_ANTERIOR' ? 'Q Anterior' : 'Personalizado';
+    const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
+    const periodoLabel = periodoObj?.label || 'Personalizado';
     
     // Calcular promedio general del área
     const promedioArea = resultadosPorPersona.length > 0

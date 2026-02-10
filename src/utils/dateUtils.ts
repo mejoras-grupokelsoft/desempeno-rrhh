@@ -3,7 +3,17 @@
 // Exportar funciones de nuevos gráficos
 export { calcularSaltoDeNivel, calcularHardSoftStack, calcularBandasSeniority } from './newChartCalculations';
 
-export type PeriodoType = 'Q_ANTERIOR' | 'ESTE_ANO' | 'HISTORICO';
+export type PeriodoType = 
+  | 'HISTORICO'
+  | 'ESTE_ANO'
+  | 'Q_ACTUAL'
+  | 'Q_ANTERIOR'
+  | 'ULTIMOS_2Q'
+  | 'ULTIMOS_3Q'
+  | 'PRIMER_SEMESTRE'
+  | 'SEGUNDO_SEMESTRE'
+  | 'ULTIMOS_6_MESES'
+  | 'ULTIMOS_3_MESES';
 
 export interface PeriodoOption {
   value: PeriodoType;
@@ -13,7 +23,14 @@ export interface PeriodoOption {
 export const PERIODOS: PeriodoOption[] = [
   { value: 'HISTORICO', label: 'Histórico (Todo)' },
   { value: 'ESTE_ANO', label: 'Este Año' },
+  { value: 'Q_ACTUAL', label: 'Q Actual' },
   { value: 'Q_ANTERIOR', label: 'Q Anterior' },
+  { value: 'ULTIMOS_2Q', label: 'Últimos 2 Trimestres' },
+  { value: 'ULTIMOS_3Q', label: 'Últimos 3 Trimestres' },
+  { value: 'PRIMER_SEMESTRE', label: 'Primer Semestre (Ene-Jun)' },
+  { value: 'SEGUNDO_SEMESTRE', label: 'Segundo Semestre (Jul-Dic)' },
+  { value: 'ULTIMOS_6_MESES', label: 'Últimos 6 Meses' },
+  { value: 'ULTIMOS_3_MESES', label: 'Últimos 3 Meses' },
 ];
 
 /**
@@ -56,6 +73,49 @@ export function getPreviousQuarterRange(): { start: Date; end: Date } {
 }
 
 /**
+ * Obtiene el rango de fechas del quarter actual
+ */
+export function getCurrentQuarterRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const currentQuarter = getQuarter(now);
+  const year = now.getFullYear();
+  
+  const startMonth = (currentQuarter - 1) * 3;
+  const endMonth = startMonth + 2;
+  
+  const start = new Date(year, startMonth, 1);
+  const end = new Date(year, endMonth + 1, 0, 23, 59, 59);
+  
+  return { start, end };
+}
+
+/**
+ * Obtiene el rango de fechas de los últimos N trimestres
+ */
+export function getLastNQuartersRange(n: number): { start: Date; end: Date } {
+  const now = new Date();
+  const currentQuarter = getQuarter(now);
+  const currentYear = now.getFullYear();
+  
+  // Calcular el trimestre de inicio
+  let startQuarter = currentQuarter - n + 1;
+  let startYear = currentYear;
+  
+  while (startQuarter <= 0) {
+    startQuarter += 4;
+    startYear -= 1;
+  }
+  
+  const startMonth = (startQuarter - 1) * 3;
+  const start = new Date(startYear, startMonth, 1);
+  
+  const endMonth = (currentQuarter - 1) * 3 + 2;
+  const end = new Date(currentYear, endMonth + 1, 0, 23, 59, 59);
+  
+  return { start, end };
+}
+
+/**
  * Obtiene el rango de fechas del año actual
  */
 export function getCurrentYearRange(): { start: Date; end: Date } {
@@ -64,6 +124,47 @@ export function getCurrentYearRange(): { start: Date; end: Date } {
   
   const start = new Date(year, 0, 1);
   const end = new Date(year, 11, 31, 23, 59, 59);
+  
+  return { start, end };
+}
+
+/**
+ * Obtiene el rango del primer semestre (Ene-Jun)
+ */
+export function getFirstSemesterRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const year = now.getFullYear();
+  
+  const start = new Date(year, 0, 1);
+  const end = new Date(year, 5, 30, 23, 59, 59);
+  
+  return { start, end };
+}
+
+/**
+ * Obtiene el rango del segundo semestre (Jul-Dic)
+ */
+export function getSecondSemesterRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const year = now.getFullYear();
+  
+  const start = new Date(year, 6, 1);
+  const end = new Date(year, 11, 31, 23, 59, 59);
+  
+  return { start, end };
+}
+
+/**
+ * Obtiene el rango de los últimos N meses
+ */
+export function getLastNMonthsRange(n: number): { start: Date; end: Date } {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  
+  const start = new Date(now);
+  start.setMonth(start.getMonth() - n);
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
   
   return { start, end };
 }
@@ -79,12 +180,39 @@ export function filterByPeriod<T extends { fecha: string }>(
     return items;
   }
 
-  const ranges = {
-    'Q_ANTERIOR': getPreviousQuarterRange(),
-    'ESTE_ANO': getCurrentYearRange(),
-  };
+  let range: { start: Date; end: Date };
 
-  const range = ranges[periodo];
+  switch (periodo) {
+    case 'ESTE_ANO':
+      range = getCurrentYearRange();
+      break;
+    case 'Q_ACTUAL':
+      range = getCurrentQuarterRange();
+      break;
+    case 'Q_ANTERIOR':
+      range = getPreviousQuarterRange();
+      break;
+    case 'ULTIMOS_2Q':
+      range = getLastNQuartersRange(2);
+      break;
+    case 'ULTIMOS_3Q':
+      range = getLastNQuartersRange(3);
+      break;
+    case 'PRIMER_SEMESTRE':
+      range = getFirstSemesterRange();
+      break;
+    case 'SEGUNDO_SEMESTRE':
+      range = getSecondSemesterRange();
+      break;
+    case 'ULTIMOS_6_MESES':
+      range = getLastNMonthsRange(6);
+      break;
+    case 'ULTIMOS_3_MESES':
+      range = getLastNMonthsRange(3);
+      break;
+    default:
+      return items;
+  }
   
   return items.filter(item => {
     const itemDate = new Date(item.fecha);
