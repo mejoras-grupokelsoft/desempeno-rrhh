@@ -14,11 +14,12 @@ Este es un dashboard serverless de evaluación de desempeño de RRHH usando:
 ## Reglas de Seguridad CRÍTICAS
 
 ### ❌ NUNCA:
-1. Hardcodear URLs de Google Apps Script o API keys
-2. Commitear archivos `.env`
-3. Exponer credenciales de Google en el frontend
-4. Hacer `console.log()` de datos sensibles en producción
-5. Incluir emails reales en tests o ejemplos
+1. **EDITAR el archivo `.env` - Esto lo hace SOLO el usuario**
+2. Hardcodear URLs de Google Apps Script o API keys
+3. Commitear archivos `.env`
+4. Exponer credenciales de Google en el frontend
+5. Hacer `console.log()` de datos sensibles en producción
+6. Incluir emails reales en tests o ejemplos
 
 ### ✅ SIEMPRE:
 1. Usar variables de entorno: `import.meta.env.VITE_GOOGLE_SCRIPT_URL`
@@ -26,6 +27,7 @@ Este es un dashboard serverless de evaluación de desempeño de RRHH usando:
 3. Validar permisos de usuario en cada vista sensible
 4. Sanitizar inputs del usuario
 5. Limpiar localStorage al hacer logout
+6. **Si se necesita configurar variables de entorno, INDICAR AL USUARIO qué agregar y para qué, NUNCA editarlo directamente**
 
 ## Estructura de Datos (TypeScript)
 
@@ -253,6 +255,47 @@ npm run coverage         # Reporte de cobertura
 - Variables de entorno configuradas en Netlify UI
 - Redirecciones para React Router: `/* /index.html 200`
 - Google Apps Script desplegado con acceso "Anyone"
+
+## Configuración de Google OAuth (Usuario debe hacer esto)
+
+### Error: "The given origin is not allowed for the given client ID"
+
+**Causa**: El origen (localhost) no está autorizado en Google Cloud Console.
+
+**Solución (SOLO el usuario debe hacer esto):**
+
+1. **Ir a Google Cloud Console**:
+   - URL: https://console.cloud.google.com/apis/credentials
+   - Buscar las credenciales OAuth 2.0 del proyecto
+
+2. **Editar el Client ID OAuth 2.0**:
+   - Buscar el Client ID que está en `.env` como `VITE_GOOGLE_CLIENT_ID`
+   - Click en editar (ícono de lápiz)
+
+3. **Agregar Orígenes de JavaScript autorizados**:
+   ```
+   http://localhost:5173
+   http://localhost:5174
+   https://tu-dominio-netlify.netlify.app
+   ```
+   ⚠️ **IMPORTANTE**: Solo agregar en "Orígenes de JavaScript autorizados"
+   ⚠️ **NO agregar** en "URIs de redireccionamiento autorizados" (no es necesario para el botón de Google)
+
+4. **Guardar cambios** y esperar 5 minutos para propagación
+
+5. **Recargar la aplicación** en el navegador (Ctrl + Shift + R)
+
+### Variables de Entorno requeridas en `.env`:
+
+```bash
+# Google Apps Script API URL
+VITE_GOOGLE_SCRIPT_URL=https://script.google.com/macros/s/TU_DEPLOYMENT_ID/exec
+
+# Google OAuth Client ID (de Google Cloud Console)
+VITE_GOOGLE_CLIENT_ID=TU_CLIENT_ID.apps.googleusercontent.com
+```
+
+**Nota para AI**: Si el usuario reporta error 403 de Google OAuth, **NUNCA editar el .env** - solo indicarle estos pasos.
 
 ## Errores Comunes a Evitar
 - Olvidar validar permisos en nuevas vistas

@@ -19,6 +19,23 @@ export default function Login() {
   const { users, setCurrentUser, loading, error: apiError } = useApp();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [devEmail, setDevEmail] = useState<string>('');
+  
+  // Mostrar modo desarrollo siempre en localhost
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  // Modo desarrollo bypass
+  const handleDevLogin = () => {
+    const email = devEmail.toLowerCase().trim();
+    const user = users.find((u) => u.email.toLowerCase().trim() === email);
+    
+    if (user) {
+      setCurrentUser(user);
+      localStorage.setItem('currentUser', JSON.stringify(user));
+    } else {
+      setError(`Email "${email}" no encontrado en la base de datos.`);
+    }
+  };
 
   const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
     try {
@@ -131,6 +148,40 @@ export default function Login() {
           {error && (
             <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-xl text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Modo Desarrollo (visible en localhost) */}
+          {isDevelopment && (
+            <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm font-bold text-yellow-900">Modo Desarrollo (Bypass OAuth)</p>
+              </div>
+              <p className="text-xs text-yellow-800 mb-3">
+                Para saltear el error de Google OAuth, ingresá tu email registrado:
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={devEmail}
+                  onChange={(e) => setDevEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleDevLogin()}
+                  placeholder="capital.humano@ejemplo.com"
+                  className="flex-1 px-3 py-2 border border-yellow-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent outline-none"
+                />
+                <button
+                  onClick={handleDevLogin}
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-semibold transition"
+                >
+                  Entrar
+                </button>
+              </div>
+              <p className="text-xs text-yellow-700 mt-2">
+                ⚠️ Esto solo funciona en desarrollo. Para usar Google OAuth, configurá los orígenes en Google Cloud Console.
+              </p>
             </div>
           )}
 

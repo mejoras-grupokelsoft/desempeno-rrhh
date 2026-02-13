@@ -1,5 +1,5 @@
 // src/components/DumbbellChart.tsx
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 export interface DumbbellDataPoint {
   skill: string;
@@ -25,8 +25,29 @@ const COLORS = {
   gapActual: '#ef4444',
 };
 
+interface TooltipPos {
+  top: number;
+  left: number;
+}
+
 export default function DumbbellChart({ data, title }: DumbbellChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<TooltipPos>({ top: 0, left: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = useCallback((idx: number, e: React.MouseEvent<HTMLDivElement>) => {
+    setHoveredIdx(idx);
+    const row = e.currentTarget;
+    const container = containerRef.current;
+    if (row && container) {
+      const rowRect = row.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      setTooltipPos({
+        top: rowRect.top - containerRect.top + rowRect.height / 2,
+        left: rowRect.right - containerRect.left + 8,
+      });
+    }
+  }, []);
 
   if (!data || data.length === 0) return null;
 
@@ -38,7 +59,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
   const toPercent = (val: number) => (val / SCALE_MAX) * 100;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md mb-8">
+    <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md mb-8 relative">
       {title && (
         <h3 className="text-lg font-bold text-slate-900 mb-1">{title}</h3>
       )}
@@ -101,7 +122,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
               className={`rounded-lg transition-all cursor-default ${
                 isHovered ? 'bg-stone-50' : ''
               }`}
-              onMouseEnter={() => setHoveredIdx(idx)}
+              onMouseEnter={(e) => handleMouseEnter(idx, e)}
               onMouseLeave={() => setHoveredIdx(null)}
             >
               <div className="flex items-start">
@@ -287,27 +308,36 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
         })}
       </div>
 
-      {/* Tooltip on hover */}
+      {/* Floating Tooltip Popover */}
       {hoveredIdx !== null && sorted[hoveredIdx] && (() => {
         const p = sorted[hoveredIdx];
         return (
-          <div className="mt-4 p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs">
-            <p className="font-bold text-slate-900 mb-2">{p.skill}</p>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+          <div
+            className="absolute z-50 w-56 p-3 bg-white rounded-xl border border-stone-200 shadow-xl text-xs pointer-events-none animate-in fade-in"
+            style={{
+              top: `${tooltipPos.top}px`,
+              right: '0px',
+              transform: 'translateY(-50%)',
+            }}
+          >
+            {/* Arrow pointing left */}
+            <div className="absolute left-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-b-[6px] border-r-[6px] border-t-transparent border-b-transparent border-r-white drop-shadow-sm" />
+            <p className="font-bold text-slate-900 mb-2 truncate" title={p.skill}>{p.skill}</p>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
               {/* Q Anterior */}
               <div>
                 <p className="text-[10px] font-semibold text-stone-400 mb-1">Q ANTERIOR</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full border-2 bg-white" style={{ borderColor: COLORS.auto, opacity: 0.6 }} />
-                    <span className="text-stone-600">Auto:</span>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full border-[1.5px] bg-white" style={{ borderColor: COLORS.auto, opacity: 0.6 }} />
+                    <span className="text-stone-500">Auto:</span>
                     <span className="font-bold" style={{ color: COLORS.auto }}>
                       {p.autoAnterior > 0 ? p.autoAnterior.toFixed(2) : '-'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full border-2 bg-white" style={{ borderColor: COLORS.jefe, opacity: 0.6 }} />
-                    <span className="text-stone-600">Lider:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full border-[1.5px] bg-white" style={{ borderColor: COLORS.jefe, opacity: 0.6 }} />
+                    <span className="text-stone-500">Lider:</span>
                     <span className="font-bold" style={{ color: COLORS.jefe }}>
                       {p.jefeAnterior > 0 ? p.jefeAnterior.toFixed(2) : '-'}
                     </span>
@@ -317,17 +347,17 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
               {/* Q Actual */}
               <div>
                 <p className="text-[10px] font-semibold text-stone-700 mb-1">Q ACTUAL</p>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS.auto }} />
-                    <span className="text-stone-600">Auto:</span>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.auto }} />
+                    <span className="text-stone-500">Auto:</span>
                     <span className="font-bold" style={{ color: COLORS.auto }}>
                       {p.autoActual > 0 ? p.autoActual.toFixed(2) : '-'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS.jefe }} />
-                    <span className="text-stone-600">Lider:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.jefe }} />
+                    <span className="text-stone-500">Lider:</span>
                     <span className="font-bold" style={{ color: COLORS.jefe }}>
                       {p.jefeActual > 0 ? p.jefeActual.toFixed(2) : '-'}
                     </span>
@@ -336,9 +366,9 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
               </div>
             </div>
             {p.esperado > 0 && (
-              <div className="mt-2 pt-2 border-t border-stone-200 flex items-center gap-2">
-                <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent" style={{ borderBottomColor: COLORS.esperado }} />
-                <span className="text-stone-600">Esperado:</span>
+              <div className="mt-1.5 pt-1.5 border-t border-stone-100 flex items-center gap-1.5">
+                <div className="w-0 h-0 border-l-[3px] border-r-[3px] border-b-[5px] border-l-transparent border-r-transparent" style={{ borderBottomColor: COLORS.esperado }} />
+                <span className="text-stone-500">Esperado:</span>
                 <span className="font-bold" style={{ color: COLORS.esperado }}>{p.esperado.toFixed(2)}</span>
               </div>
             )}

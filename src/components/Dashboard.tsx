@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [seniorityEsperado] = useState<Seniority>('Junior');
+  const [hasAutoSelected, setHasAutoSelected] = useState<boolean>(false);
   
   // Vista inicial depende del rol
   const [vista, setVista] = useState<VistaType>(
@@ -102,6 +103,29 @@ export default function Dashboard() {
     const normalized = normalizeText(searchTerm);
     return evaluados.filter(e => normalizeText(e.nombre).includes(normalized));
   }, [evaluados, searchTerm]);
+
+  // Seleccionar automáticamente el primer evaluado en la carga inicial
+  useEffect(() => {
+    if (!hasAutoSelected && !selectedEmail && evaluados.length > 0) {
+      const firstEvaluado = evaluados[0];
+      setSelectedEmail(firstEvaluado.email);
+      setSearchTerm(firstEvaluado.nombre);
+      setHasAutoSelected(true);
+    }
+  }, [evaluados, selectedEmail, hasAutoSelected]);
+
+  // Resetear email seleccionado si ya no está en la lista de evaluados (por cambio de filtros)
+  useEffect(() => {
+    if (selectedEmail && evaluados.length > 0) {
+      const isStillAvailable = evaluados.some(e => e.email === selectedEmail);
+      if (!isStillAvailable) {
+        // El evaluado seleccionado ya no está disponible, seleccionar el primero de la nueva lista
+        const firstEvaluado = evaluados[0];
+        setSelectedEmail(firstEvaluado.email);
+        setSearchTerm(firstEvaluado.nombre);
+      }
+    }
+  }, [evaluados, selectedEmail]);
 
   const mostrarEvaluado = evaluados.find(e => e.email === selectedEmail);
   
