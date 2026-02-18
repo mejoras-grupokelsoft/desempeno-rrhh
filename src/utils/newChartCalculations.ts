@@ -45,7 +45,7 @@ export function calcularSaltoDeNivel<T extends {
     return date >= hace6Meses && date < hace3Meses;
   });
 
-  // Calcular promedio unificado (Auto + Jefe) / 2
+  // Calcular promedio unificado: min((Auto + Jefe) / 2, Jefe)
   const calcularPromedio = (evalSet: T[]) => {
     const autoSum = evalSet.filter(e => e.tipoEvaluador === 'AUTO').reduce((sum, e) => sum + e.puntaje, 0);
     const autoCount = evalSet.filter(e => e.tipoEvaluador === 'AUTO').length;
@@ -55,7 +55,7 @@ export function calcularSaltoDeNivel<T extends {
     const autoAvg = autoCount > 0 ? autoSum / autoCount : 0;
     const jefeAvg = jefeCount > 0 ? jefeSum / jefeCount : 0;
 
-    return autoAvg > 0 && jefeAvg > 0 ? (autoAvg + jefeAvg) / 2 : (autoAvg || jefeAvg);
+    return autoAvg > 0 && jefeAvg > 0 ? Math.min((autoAvg + jefeAvg) / 2, jefeAvg) : (autoAvg || jefeAvg);
   };
 
   // Si no hay userEmail, agrupar por persona
@@ -160,7 +160,7 @@ export function calcularHardSoftStack<T extends {
       const autoAvg = autoCount > 0 ? autoSum / autoCount : 0;
       const jefeAvg = jefeCount > 0 ? jefeSum / jefeCount : 0;
 
-      return autoAvg > 0 && jefeAvg > 0 ? (autoAvg + jefeAvg) / 2 : (autoAvg || jefeAvg);
+      return autoAvg > 0 && jefeAvg > 0 ? Math.min((autoAvg + jefeAvg) / 2, jefeAvg) : (autoAvg || jefeAvg);
     };
 
     return {
@@ -253,7 +253,7 @@ export function calcularBandasSeniority<T extends {
     return date >= hace6Meses && date < hace3Meses;
   });
 
-  // Calcular promedio unificado
+  // Calcular promedio unificado: min((Auto + Jefe) / 2, Jefe)
   const calcularPromedio = (evalSet: T[]) => {
     const autoSum = evalSet.filter(e => e.tipoEvaluador === 'AUTO').reduce((sum, e) => sum + e.puntaje, 0);
     const autoCount = evalSet.filter(e => e.tipoEvaluador === 'AUTO').length;
@@ -263,7 +263,7 @@ export function calcularBandasSeniority<T extends {
     const autoAvg = autoCount > 0 ? autoSum / autoCount : 0;
     const jefeAvg = jefeCount > 0 ? jefeSum / jefeCount : 0;
 
-    return autoAvg > 0 && jefeAvg > 0 ? (autoAvg + jefeAvg) / 2 : (autoAvg || jefeAvg);
+    return autoAvg > 0 && jefeAvg > 0 ? Math.min((autoAvg + jefeAvg) / 2, jefeAvg) : (autoAvg || jefeAvg);
   };
 
   const getSeniority = (score: number): string => {

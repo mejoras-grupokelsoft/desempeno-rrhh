@@ -13,6 +13,7 @@ dist-ssr
 *.local
 Formulario de evaluación de desempeño - EVALUACIONES FINAL.csv
 Formulario de evaluación de desempeño - Habilidades.csv
+CHECKLIST_LOCAL.md
 
 # Editor directories and files
 .vscode/*

@@ -288,7 +288,7 @@ export function groupByMonthAndSeniority<T extends { fecha: string; puntaje: num
           if (tieneAuto && tieneJefe) {
             const promedioAuto = data.sumAuto / data.countAuto;
             const promedioJefe = data.sumJefe / data.countJefe;
-            promedioPersona = (promedioAuto + promedioJefe) / 2;
+            promedioPersona = Math.min((promedioAuto + promedioJefe) / 2, promedioJefe);
           } else if (tieneAuto) {
             promedioPersona = data.sumAuto / data.countAuto;
           } else if (tieneJefe) {
@@ -353,7 +353,7 @@ export function comparePersonaBetweenPeriods<T extends { fecha: string; skillNom
     return Array.from(skillMap.entries()).map(([skill, data]) => {
       const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
       const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
-      const promedio = (auto + jefe) / 2;
+      const promedio = auto > 0 && jefe > 0 ? Math.min((auto + jefe) / 2, jefe) : (auto || jefe);
       
       return { skill, tipo: data.tipo, auto, jefe, promedio };
     });
@@ -463,7 +463,7 @@ export function groupByMonthSkillTypeAndSeniority<T extends { fecha: string; pun
             if (tieneAuto && tieneJefe) {
               const promedioAuto = data.sumAuto / data.countAuto;
               const promedioJefe = data.sumJefe / data.countJefe;
-              promedioPersona = (promedioAuto + promedioJefe) / 2;
+              promedioPersona = Math.min((promedioAuto + promedioJefe) / 2, promedioJefe);
             } else if (tieneAuto) {
               promedioPersona = data.sumAuto / data.countAuto;
             } else if (tieneJefe) {
@@ -527,7 +527,7 @@ export function calcularTopSkillChanges<T extends { fecha: string; skillNombre: 
     skillMap.forEach((data, skill) => {
       const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
       const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
-      const promedio = (auto + jefe) / 2;
+      const promedio = auto > 0 && jefe > 0 ? Math.min((auto + jefe) / 2, jefe) : (auto || jefe);
       result.set(skill, { tipo: data.tipo, promedio });
     });
     
@@ -612,7 +612,7 @@ export function calcularTendenciaSeniority<T extends { fecha: string; evaluadoEm
       const auto = data.countAuto > 0 ? data.sumAuto / data.countAuto : 0;
       const jefe = data.countJefe > 0 ? data.sumJefe / data.countJefe : 0;
       if (auto > 0 || jefe > 0) {
-        sumPromediosPersonas += (auto + jefe) / 2;
+        sumPromediosPersonas += auto > 0 && jefe > 0 ? Math.min((auto + jefe) / 2, jefe) : (auto || jefe);
         countPersonas++;
       }
     });
@@ -696,7 +696,7 @@ export function calcularEvolucionPorSkill<T extends { fecha: string; skillNombre
     skillMap.forEach((data, skill) => {
       const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
       const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
-      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+      const promedio = auto > 0 && jefe > 0 ? Math.min((auto + jefe) / 2, jefe) : (auto || jefe);
       if (promedio > 0) {
         result.set(skill, { tipo: data.tipo, promedio });
       }
@@ -790,7 +790,7 @@ export function calcularMatrizCierreBrecha<T extends { fecha: string; puntaje: n
         : 0;
       
       const promedioGeneral = promedioAuto > 0 && promedioJefe > 0 
-        ? (promedioAuto + promedioJefe) / 2 
+        ? Math.min((promedioAuto + promedioJefe) / 2, promedioJefe)
         : (promedioAuto || promedioJefe);
       
       const gap = Math.abs(promedioJefe - promedioAuto);
@@ -852,7 +852,7 @@ export function prepararRadarComparativo<T extends { fecha: string; skillNombre:
     skillMap.forEach((data, skill) => {
       const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
       const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
-      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+      const promedio = auto > 0 && jefe > 0 ? Math.min((auto + jefe) / 2, jefe) : (auto || jefe);
       if (promedio > 0) {
         result.push({ skill, value: promedio });
       }

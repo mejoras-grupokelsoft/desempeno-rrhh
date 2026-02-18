@@ -10,6 +10,7 @@ import {
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
+import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
 import RadarChart from '../components/RadarChart';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -49,6 +50,9 @@ export default function Dashboard() {
   const [filtrosCollapsed, setFiltrosCollapsed] = useState<boolean>(false);
   const [showPDFModal, setShowPDFModal] = useState<boolean>(false);
   const [comentarioRRHH, setComentarioRRHH] = useState<string>('');
+  const [emailDestinatarios, setEmailDestinatarios] = useState<string>('');
+  const [enviandoEmail, setEnviandoEmail] = useState<boolean>(false);
+  const [emailResultado, setEmailResultado] = useState<{ tipo: 'exito' | 'error'; mensaje: string } | null>(null);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -343,15 +347,14 @@ export default function Dashboard() {
     setHardSkillAreaIndexAnalista(0);
   };
 
-  // ===== GENERAR PDF INDIVIDUAL =====
-  const handleDescargarPDF = () => {
-    if (!selectedEmail || !mostrarEvaluado) return;
+  // ===== CONSTRUIR DATOS PDF (compartido entre descargar y enviar) =====
+  const buildPDFData = (): { pdfData: PDFReporteData; nombreArchivo: string; periodoLabel: string } | null => {
+    if (!selectedEmail || !mostrarEvaluado) return null;
 
     const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
     const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
 
-    // Derivar area y rol de las evaluaciones
     const firstEval = evalsPersona[0];
     const evalArea = firstEval?.area || '';
     const evalRol = firstEval?.origen === 'LIDER' ? 'Líder' : 'Analista';
@@ -359,17 +362,14 @@ export default function Dashboard() {
     const radarDataHard = transformarARadarData(evalsHard, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
     const radarDataSoft = transformarARadarData(evalsSoft, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
 
-    // Líder evaluador
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
     const liderUser = users.find(u => u.email === liderEmail);
     const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
-    // Período evaluado
     const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
     const periodoLabel = periodoObj?.label || 'Histórico';
 
-    // Evolución Q anterior vs actual
     let evolucion: PDFReporteData['evolucion'] = undefined;
     const allEvals = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
     const comp = comparePersonaBetweenPeriods(allEvals);
@@ -384,7 +384,6 @@ export default function Dashboard() {
       };
     }
 
-    // Comentarios del líder
     const comentarios = evalsPersona
       .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
       .map(e => ({
@@ -411,11 +410,92 @@ export default function Dashboard() {
       comentarioRRHH: comentarioRRHH.trim() || undefined,
     };
 
-    const pdf = generarPDFIndividual(pdfData);
     const nombreArchivo = `Evaluacion_${mostrarEvaluado.nombre.replace(/\s+/g, '_')}.pdf`;
-    pdf.save(nombreArchivo);
+    return { pdfData, nombreArchivo, periodoLabel };
+  };
+
+  // ===== DESCARGAR PDF =====
+  const handleDescargarPDF = () => {
+    const result = buildPDFData();
+    if (!result) return;
+
+    const pdf = generarPDFIndividual(result.pdfData);
+    pdf.save(result.nombreArchivo);
     setShowPDFModal(false);
     setComentarioRRHH('');
+    setEmailDestinatarios('');
+    setEmailResultado(null);
+  };
+
+  // ===== ENVIAR PDF POR EMAIL =====
+  const handleEnviarEmail = async () => {
+    const result = buildPDFData();
+    if (!result || !mostrarEvaluado) return;
+
+    // Parsear destinatarios: el email del evaluado + los que agregó el usuario
+    const destinatariosExtra = emailDestinatarios
+      .split(/[,;\s]+/)
+      .map(e => e.trim())
+      .filter(e => e.includes('@'));
+
+    // Siempre incluir al evaluado, más los extras
+    const todosDestinatarios = [selectedEmail, ...destinatariosExtra.filter(e => e !== selectedEmail)];
+
+    // Validar que haya al menos un destinatario con formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidos = todosDestinatarios.filter(e => !emailRegex.test(e));
+    if (invalidos.length > 0) {
+      setEmailResultado({ tipo: 'error', mensaje: `Emails inválidos: ${invalidos.join(', ')}` });
+      return;
+    }
+
+    setEnviandoEmail(true);
+    setEmailResultado(null);
+
+    try {
+      const pdf = generarPDFIndividual(result.pdfData);
+      const pdfBase64 = pdfToBase64(pdf);
+
+      const cuerpoHTML = generarCuerpoEmail(
+        mostrarEvaluado.nombre,
+        result.periodoLabel,
+        comentarioRRHH.trim() || undefined
+      );
+
+      const response = await enviarEmailConPDF({
+        destinatarios: todosDestinatarios,
+        asunto: `Reporte de Evaluación de Desempeño - ${mostrarEvaluado.nombre}`,
+        cuerpoHTML,
+        pdfBase64,
+        nombreArchivo: result.nombreArchivo,
+      });
+
+      if (response.success) {
+        setEmailResultado({
+          tipo: 'exito',
+          mensaje: `Email enviado correctamente a: ${todosDestinatarios.join(', ')}`,
+        });
+        // Cerrar modal después de 3 segundos si fue exitoso
+        setTimeout(() => {
+          setShowPDFModal(false);
+          setComentarioRRHH('');
+          setEmailDestinatarios('');
+          setEmailResultado(null);
+        }, 3000);
+      } else {
+        setEmailResultado({
+          tipo: 'error',
+          mensaje: response.message,
+        });
+      }
+    } catch (err) {
+      setEmailResultado({
+        tipo: 'error',
+        mensaje: err instanceof Error ? err.message : 'Error inesperado al enviar el email',
+      });
+    } finally {
+      setEnviandoEmail(false);
+    }
   };
 
   const handlePrevAreaLider = () => {
@@ -707,7 +787,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Botón exportar PDF (solo con persona seleccionada) */}
+            {/* Botón exportar PDF / Enviar email (solo con persona seleccionada) */}
             {selectedEmail && mostrarEvaluado && filteredEvaluations.length > 0 && canSeeAll(currentUser.rol) && (
               <div className="mb-6 flex justify-end">
                 <button
@@ -717,7 +797,7 @@ export default function Dashboard() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Descargar Reporte PDF
+                  Descargar / Enviar Reporte
                 </button>
               </div>
             )}
@@ -1179,14 +1259,14 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Modal PDF */}
+      {/* Modal PDF + Email */}
       {showPDFModal && mostrarEvaluado && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Generar Reporte PDF</h3>
+              <h3 className="text-lg font-bold text-slate-900">Reporte PDF</h3>
               <button
-                onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); }}
+                onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); setEmailDestinatarios(''); setEmailResultado(null); }}
                 className="p-1.5 hover:bg-stone-100 rounded-lg transition"
               >
                 <svg className="w-5 h-5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1194,9 +1274,13 @@ export default function Dashboard() {
                 </svg>
               </button>
             </div>
+
             <p className="text-sm text-stone-600 mb-4">
               Reporte de <span className="font-semibold">{mostrarEvaluado.nombre}</span>
+              <span className="text-stone-400 ml-1">({selectedEmail})</span>
             </p>
+
+            {/* Comentario RRHH */}
             <div className="mb-4">
               <label className="block text-sm font-semibold text-stone-700 mb-2">
                 Observaciones de RRHH (opcional)
@@ -1205,24 +1289,109 @@ export default function Dashboard() {
                 value={comentarioRRHH}
                 onChange={(e) => setComentarioRRHH(e.target.value)}
                 placeholder="Agregar comentario para incluir en el reporte..."
-                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-28 text-sm"
+                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-24 text-sm"
               />
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); }}
-                className="flex-1 px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition font-semibold text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDescargarPDF}
-                className="flex-1 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+
+            {/* Separador */}
+            <div className="border-t border-stone-200 my-5" />
+
+            {/* Sección de envío por email */}
+            <div className="mb-4">
+              <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Descargar PDF
+                Enviar por Email
+              </h4>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Destinatario principal:</span> {selectedEmail}
+                </p>
+              </div>
+
+              <label className="block text-sm font-medium text-stone-600 mb-2">
+                Destinatarios adicionales (opcional)
+              </label>
+              <input
+                type="text"
+                value={emailDestinatarios}
+                onChange={(e) => setEmailDestinatarios(e.target.value)}
+                placeholder="email1@empresa.com, email2@empresa.com"
+                className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
+              />
+              <p className="text-xs text-stone-400 mt-1">
+                Separá múltiples emails con comas. El reporte se enviará al evaluado y a los adicionales.
+              </p>
+            </div>
+
+            {/* Resultado del envío */}
+            {emailResultado && (
+              <div className={`mb-4 p-3 rounded-xl text-sm font-medium ${
+                emailResultado.tipo === 'exito'
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {emailResultado.tipo === 'exito' ? (
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                  {emailResultado.mensaje}
+                </div>
+              </div>
+            )}
+
+            {/* Botones de acción */}
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); setEmailDestinatarios(''); setEmailResultado(null); }}
+                  className="flex-1 px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition font-semibold text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDescargarPDF}
+                  className="flex-1 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition font-semibold text-sm flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Descargar PDF
+                </button>
+              </div>
+              <button
+                onClick={handleEnviarEmail}
+                disabled={enviandoEmail}
+                className={`w-full px-4 py-2.5 rounded-xl transition font-semibold text-sm flex items-center justify-center gap-2 ${
+                  enviandoEmail
+                    ? 'bg-green-400 text-white cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-md'
+                }`}
+              >
+                {enviandoEmail ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Enviar Reporte por Email
+                  </>
+                )}
               </button>
             </div>
           </div>

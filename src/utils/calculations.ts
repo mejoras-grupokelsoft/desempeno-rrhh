@@ -1,9 +1,11 @@
 // src/utils/calculations.ts
 import type { Evaluation, SkillMatrix, RadarDataPoint, Seniority, EvolucionDataPoint } from '../types';
 
-// Configuración de ponderación: % de peso para cada tipo de evaluación
-const PONDERACION_JEFE = 0.70;  // 70% peso del líder
-const PONDERACION_AUTO = 0.30;  // 30% peso de autoevaluación
+// Regla de puntaje final:
+// 1. Se calcula el promedio simple entre auto y jefe: (auto + jefe) / 2
+// 2. Si el promedio > jefe → se toma jefe
+// 3. Si el promedio ≤ jefe → se toma el promedio
+// Resultado: Math.min((auto + jefe) / 2, jefe)
 
 /**
  * Calcula el promedio de puntajes para un tipo de evaluador y skill específica
@@ -61,11 +63,10 @@ export function transformarARadarData(
   return skills.map((skill) => {
     const auto = calcularPromedio(evaluations, 'AUTO', skill);
     const jefe = calcularPromedio(evaluations, 'JEFE', skill);
-    // Promedio ponderado: 70% líder + 30% auto (si ambos existen)
-    // IMPORTANTE: El resultado nunca puede ser mayor al puntaje del líder
-    const promedioPonderado = (jefe * PONDERACION_JEFE) + (auto * PONDERACION_AUTO);
+    // Puntaje final: promedio simple, nunca mayor al puntaje del líder
+    const promedioSimple = (auto + jefe) / 2;
     const promedio = auto > 0 && jefe > 0 
-      ? Math.min(promedioPonderado, jefe)
+      ? Math.min(promedioSimple, jefe)
       : auto > 0 ? auto : jefe;
     const esperado = obtenerValorEsperado(skillsMatrix, skill, seniorityEsperado, rol, area);
 
@@ -172,9 +173,10 @@ export function calcularEvolucionTrimestral(
       ? jefePuntajes.reduce((a, b) => a + b, 0) / jefePuntajes.length
       : 0;
 
-    // Promedio ponderado consistente con la lógica existente
+    // Puntaje final: promedio simple, nunca mayor al puntaje del líder
+    const promedioSimple = (autoPromedio + jefePromedio) / 2;
     const promedio = autoPromedio > 0 && jefePromedio > 0
-      ? (jefePromedio * PONDERACION_JEFE) + (autoPromedio * PONDERACION_AUTO)
+      ? Math.min(promedioSimple, jefePromedio)
       : autoPromedio > 0 ? autoPromedio : jefePromedio;
 
     // Formatear label del trimestre
