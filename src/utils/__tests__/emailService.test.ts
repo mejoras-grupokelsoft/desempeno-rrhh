@@ -71,7 +71,8 @@ describe('enviarEmailConPDF', () => {
   });
 
   it('retorna error si VITE_GOOGLE_SCRIPT_URL no está configurada', async () => {
-    // import.meta.env.VITE_GOOGLE_SCRIPT_URL es undefined por defecto en tests
+    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', '');
+
     const result = await enviarEmailConPDF(mockRequest);
     expect(result.success).toBe(false);
     expect(result.message).toContain('VITE_GOOGLE_SCRIPT_URL');

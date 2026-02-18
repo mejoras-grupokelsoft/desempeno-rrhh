@@ -85,7 +85,18 @@ const BandLabel = ({ viewBox, label, color }: any) => {
 
 export default function EvolucionChart({ data, title }: EvolucionChartProps) {
   if (!data || data.length === 0) {
-    return null;
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 text-center mb-8">
+        {title && <h3 className="text-lg font-bold text-slate-900 mb-4">{title}</h3>}
+        <div className="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg className="w-7 h-7 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        </div>
+        <p className="text-stone-500 text-sm font-medium">Sin datos de evoluci\u00f3n</p>
+        <p className="text-stone-400 text-xs mt-1">Se necesitan evaluaciones en distintos trimestres</p>
+      </div>
+    );
   }
 
   return (
@@ -99,7 +110,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
         Evolucion del desempeno por trimestre con bandas de nivel de seniority
       </p>
 
-      <ResponsiveContainer width="100%" height={400}>
+      <ResponsiveContainer width="100%" height={400} minHeight={300}>
         <ComposedChart data={data} margin={{ top: 10, right: 80, left: 10, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
 

@@ -88,8 +88,16 @@ const CustomTick = (props: any) => {
 export default function RadarChartComponent({ data, title, onClick }: RadarChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-        <p className="text-stone-500 text-center">No hay datos para mostrar</p>
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 text-center">
+        {title && <h3 className="text-lg font-bold text-slate-900 mb-4">{title}</h3>}
+        <div className="w-14 h-14 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg className="w-7 h-7 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+          </svg>
+        </div>
+        <p className="text-stone-500 text-sm font-medium">No hay datos para este gr\u00e1fico</p>
+        <p className="text-stone-400 text-xs mt-1">Seleccion\u00e1 un evaluado o ajust\u00e1 los filtros</p>
       </div>
     );
   }
@@ -117,7 +125,7 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
         </h3>
       )}
 
-      <ResponsiveContainer width="100%" height={600}>
+      <ResponsiveContainer width="100%" height={500} minHeight={350}>
         <RechartsRadar data={data}>
           <PolarGrid stroke="#e7e5e4" strokeWidth={1} />
           <PolarAngleAxis

@@ -168,7 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         setCurrentUser: handleSetCurrentUser,
-        logout,
+        logout: handleLogout,
       }}
     >
       {children}

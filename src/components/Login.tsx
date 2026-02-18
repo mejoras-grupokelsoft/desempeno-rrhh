@@ -24,10 +24,11 @@ export default function Login() {
   
   // Mostrar modo desarrollo siempre en localhost
   const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   // Modo desarrollo bypass
   const handleDevLogin = () => {
-    const email = sanitizeEmail(devEmail).toLowerCase().trim();
+    const email = sanitizeEmail(devEmail);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Ingresá un email válido.');
       return;
@@ -47,24 +48,28 @@ export default function Login() {
       setError('');
 
       if (!credentialResponse.credential) {
-        setError('No se recibió credencial de Google');
+        setError('No se recibió credencial de Google.');
         return;
       }
 
       // Decodificar el JWT de Google
       const decoded: GoogleUser = jwtDecode(credentialResponse.credential);
-      const googleEmail = decoded.email.toLowerCase().trim();
+      const googleEmail = sanitizeEmail(decoded.email);
+
+      if (!googleEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) {
+        setError('El token de Google no contiene un email válido.');
+        return;
+      }
 
       // Buscar usuario en la whitelist
       const user = users.find((u) => u.email.toLowerCase().trim() === googleEmail);
 
       if (user) {
         setCurrentUser(user);
-        localStorage.setItem('currentUser', JSON.stringify(user));
       } else {
         setError(`Acceso denegado. El email "${googleEmail}" no está autorizado en el sistema.`);
       }
-    } catch (err) {
+    } catch {
       setError('Error al procesar la autenticación. Intentá de nuevo.');
     } finally {
       setIsLoading(false);
