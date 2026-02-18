@@ -64,7 +64,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
         <h3 className="text-lg font-bold text-slate-900 mb-1">{title}</h3>
       )}
       <p className="text-xs text-stone-500 mb-5">
-        Brecha auto vs lider por skill. Fila superior: Q anterior (desvanecido). Fila inferior: Q actual (solido).
+        Brecha auto vs líder por skill. Arriba: Q anterior (desvanecido) · Abajo: Q actual (sólido). Indicador: si la brecha se redujo (Mejoró) o aumentó (Empeoró).
       </p>
 
       {/* Leyenda */}
@@ -95,7 +95,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
       <div className="space-y-0">
         {/* Scale header */}
         <div className="flex items-center h-6">
-          <div className="w-[140px] flex-shrink-0" />
+          <div className="w-[180px] flex-shrink-0" />
           <div className="flex-1 relative">
             <div className="flex justify-between text-[10px] text-stone-400 font-medium px-0">
               {[0, 1, 2, 3, 4, 5].map((tick) => (
@@ -128,7 +128,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
               <div className="flex items-start">
                 {/* Skill name */}
                 <div
-                  className="w-[140px] flex-shrink-0 text-xs font-medium text-stone-700 pr-3 truncate text-right pt-3"
+                  className="w-[180px] flex-shrink-0 text-xs font-medium text-stone-700 pr-3 text-right pt-1 leading-tight break-words hyphens-auto"
                   title={point.skill}
                 >
                   {point.skill}
@@ -281,7 +281,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
                       <span className={`text-[10px] font-bold ${
                         gapChange < -0.1 ? 'text-green-600' : gapChange > 0.1 ? 'text-red-500' : 'text-stone-400'
                       }`}>
-                        {gapChange < -0.1 ? 'Cerro' : gapChange > 0.1 ? 'Abrio' : 'Igual'}
+                        {gapChange < -0.1 ? '▲ Mejoró' : gapChange > 0.1 ? '▼ Empeoró' : '= Estable'}
                       </span>
                       <span className={`text-[10px] font-medium ${
                         gapChange < -0.1 ? 'text-green-500' : gapChange > 0.1 ? 'text-red-400' : 'text-stone-300'

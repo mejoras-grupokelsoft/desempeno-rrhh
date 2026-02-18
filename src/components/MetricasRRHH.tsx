@@ -8,7 +8,8 @@ import { filterByPeriod, calcularTendenciaSeniority, calcularBandasSeniority, PE
 import { compararSkillsPorPeriodo } from '../utils/newChartCalculations';
 import { SkillBreakdownInline } from './SkillBreakdown';
 import type { Seniority } from '../types';
-import { generarPDFIndividual, generarPDFConsolidado } from '../utils/pdfGenerator';
+import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from '../utils/pdfGenerator';
+import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
 
 // Función para normalizar texto (sin acentos, minúsculas)
 const normalizeText = (text: string): string => {
@@ -25,7 +26,7 @@ interface MetricasRRHHProps {
   onSelectPersona?: (email: string) => void; // Callback para cambiar a vista individual
 }
 
-export default function MetricasRRHH({ evaluations }: MetricasRRHHProps): React.ReactElement {
+export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps): React.ReactElement {
   // Estados para filtros
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
@@ -439,35 +440,80 @@ export default function MetricasRRHH({ evaluations }: MetricasRRHHProps): React.
     // Obtener evaluaciones de esta persona
     const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
     
-    // Preparar datos del radar
-    const radarData = transformarARadarData(
-      evalsPersona,
+    // Separar por HARD y SOFT
+    const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
+    const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
+
+    // Preparar datos del radar por dimensión
+    const radarDataHard = transformarARadarData(
+      evalsHard,
+      [],
+      personaParaPDF.seniorityAlcanzado,
+      personaParaPDF.rol,
+      personaParaPDF.area
+    );
+    const radarDataSoft = transformarARadarData(
+      evalsSoft,
       [],
       personaParaPDF.seniorityAlcanzado,
       personaParaPDF.rol,
       personaParaPDF.area
     );
 
-    // Obtener nombre del evaluador (líder) - usar evaluadoNombre del JEFE
-    const evaluadorNombre = 'Evaluador RRHH'; // Placeholder - ajustar según modelo de datos
+    // Obtener nombre del líder evaluador
+    const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
+    const liderEmail = evalJefe?.evaluadorEmail || '';
+    const liderUser = users.find(u => u.email === liderEmail);
+    const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
     // Fecha de evaluación más reciente
     const fechas = evalsPersona.map(e => new Date(e.fecha));
     const fechaMasReciente = new Date(Math.max(...fechas.map(f => f.getTime())));
 
-    const pdfData = {
+    // Período evaluado
+    const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
+    const periodoLabel = periodoObj?.label || 'Histórico';
+
+    // Evolución (comparar Q anterior vs Q actual)
+    let evolucion: PDFReporteData['evolucion'] = undefined;
+    const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
+    const comp = comparePersonaBetweenPeriods(allEvalsPersona);
+    if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
+      const promAnterior = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
+      const promActual = comp.qActual.reduce((s, c) => s + c.promedio, 0) / comp.qActual.length;
+      const diff = promActual - promAnterior;
+      evolucion = {
+        promedioAnterior: promAnterior,
+        promedioActual: promActual,
+        tendencia: diff > 0.15 ? 'mejora' : diff < -0.15 ? 'descenso' : 'estable',
+      };
+    }
+
+    // Comentarios del líder
+    const comentarios = evalsPersona
+      .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
+      .map(e => ({
+        fecha: new Date(e.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
+        skill: e.skillNombre,
+        comentario: e.comentarios!,
+        puntaje: e.puntaje,
+      }));
+
+    const pdfData: PDFReporteData = {
       evaluadoNombre: personaParaPDF.nombre,
       evaluadoEmail: personaParaPDF.email,
-      area: personaParaPDF.area,
       rol: personaParaPDF.rol,
-      seniorityEsperado: personaParaPDF.seniorityEsperado || 'N/D',
-      seniorityAlcanzado: personaParaPDF.seniorityAlcanzado,
+      area: personaParaPDF.area,
+      periodoEvaluado: periodoLabel,
+      liderEvaluadorNombre: liderNombre,
       promedioGeneral: personaParaPDF.promedioFinal,
-      gapAutoLider: personaParaPDF.gap,
-      fechaEvaluacion: fechaMasReciente.toLocaleDateString('es-AR'),
-      evaluadorNombre,
-      radarData,
-      comentarioRRHH: comentarioRRHH.trim()
+      seniorityAlcanzado: personaParaPDF.seniorityAlcanzado,
+      radarDataHard,
+      radarDataSoft,
+      evolucion,
+      seniorityEsperado: personaParaPDF.seniorityEsperado || 'N/D',
+      comentarios,
+      comentarioRRHH: comentarioRRHH.trim() || undefined,
     };
 
     const pdf = generarPDFIndividual(pdfData);

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado, transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
+import { filterByPeriod, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
 import type { Seniority } from '../types';
@@ -16,6 +17,10 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
   const { logout } = useApp();
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [showDetailedView, setShowDetailedView] = useState<boolean>(false);
+  const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodoType>('HISTORICO');
+  const [filtroModo, setFiltroModo] = useState<'periodo' | 'rango'>('periodo');
+  const [fechaInicio, setFechaInicio] = useState<string>('');
+  const [fechaFin, setFechaFin] = useState<string>('');
 
   // Obtener todas las áreas donde el analista tiene evaluaciones
   const areasDelAnalista = useMemo(() => {
@@ -35,14 +40,28 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     }
   }, [areasDelAnalista, selectedArea]);
 
-  // Filtrar evaluaciones por área seleccionada
+  // Filtrar evaluaciones por área seleccionada y período
   const evaluacionesPropias = useMemo(() => {
-    const filtered = evaluations.filter(
+    let filtered = evaluations.filter(
       e => e.evaluadoEmail === currentUser.email && 
            (!selectedArea || e.area === selectedArea)
     );
+
+    // Aplicar filtro de período
+    if (filtroModo === 'periodo') {
+      filtered = filterByPeriod(filtered, selectedPeriodo);
+    } else if (fechaInicio && fechaFin) {
+      const inicio = new Date(fechaInicio);
+      const fin = new Date(fechaFin);
+      fin.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(e => {
+        const fecha = new Date(e.fecha);
+        return fecha >= inicio && fecha <= fin;
+      });
+    }
+
     return filtered;
-  }, [evaluations, currentUser.email, selectedArea]);
+  }, [evaluations, currentUser.email, selectedArea, selectedPeriodo, filtroModo, fechaInicio, fechaFin]);
 
   // Separar por tipo de evaluador y skill
   const evalsAutoHard = useMemo(() => 
@@ -265,6 +284,62 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               </div>
             </div>
           )}
+
+          {/* Selector de Período */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-stone-700">📅 Período:</span>
+            <div className="flex gap-1 bg-stone-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setFiltroModo('periodo')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  filtroModo === 'periodo'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                📅 Períodos
+              </button>
+              <button
+                onClick={() => setFiltroModo('rango')}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  filtroModo === 'rango'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
+                }`}
+              >
+                📆 Rango
+              </button>
+            </div>
+            {filtroModo === 'periodo' ? (
+              <select
+                value={selectedPeriodo}
+                onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
+                className="px-4 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white transition text-sm"
+              >
+                {PERIODOS.map((periodo) => (
+                  <option key={periodo.value} value={periodo.value}>
+                    {periodo.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(e) => setFechaInicio(e.target.value)}
+                  className="px-3 py-2 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                />
+                <span className="text-stone-400 text-sm">a</span>
+                <input
+                  type="date"
+                  value={fechaFin}
+                  onChange={(e) => setFechaFin(e.target.value)}
+                  className="px-3 py-2 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

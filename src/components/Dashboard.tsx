@@ -6,10 +6,13 @@ import {
   transformarARadarData,
   calcularPromedioGeneral,
   calcularSeniorityAlcanzado,
+  calcularEvolucionTrimestral,
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
+import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import RadarChart from '../components/RadarChart';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
+import EvolucionChart from '../components/EvolucionChart';
 import MetricasRRHH from '../components/MetricasRRHH';
 import MetricasLider from '../components/MetricasLider';
 import type { Seniority } from '../types';
@@ -44,6 +47,8 @@ export default function Dashboard() {
   const [hardSkillAreaIndexLider, setHardSkillAreaIndexLider] = useState<number>(0);
   const [hardSkillAreaIndexAnalista, setHardSkillAreaIndexAnalista] = useState<number>(0);
   const [filtrosCollapsed, setFiltrosCollapsed] = useState<boolean>(false);
+  const [showPDFModal, setShowPDFModal] = useState<boolean>(false);
+  const [comentarioRRHH, setComentarioRRHH] = useState<string>('');
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -321,6 +326,14 @@ export default function Dashboard() {
     });
   }, [comparacionTrimestral, selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
 
+  // Datos para el gráfico de evolución trimestral (múltiples Q)
+  const evolucionData = useMemo(() => {
+    if (!selectedEmail) return [];
+    const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
+    return calcularEvolucionTrimestral(evalsPersona, skillsMatrix, seniorityEsperado, area);
+  }, [selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
+
   const handleResetFilters = () => {
     setSelectedArea('');
     setSelectedEmail('');
@@ -328,6 +341,81 @@ export default function Dashboard() {
     setSelectedPeriodo('HISTORICO');
     setHardSkillAreaIndexLider(0);
     setHardSkillAreaIndexAnalista(0);
+  };
+
+  // ===== GENERAR PDF INDIVIDUAL =====
+  const handleDescargarPDF = () => {
+    if (!selectedEmail || !mostrarEvaluado) return;
+
+    const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
+    const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
+
+    // Derivar area y rol de las evaluaciones
+    const firstEval = evalsPersona[0];
+    const evalArea = firstEval?.area || '';
+    const evalRol = firstEval?.origen === 'LIDER' ? 'Líder' : 'Analista';
+
+    const radarDataHard = transformarARadarData(evalsHard, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
+    const radarDataSoft = transformarARadarData(evalsSoft, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
+
+    // Líder evaluador
+    const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
+    const liderEmail = evalJefe?.evaluadorEmail || '';
+    const liderUser = users.find(u => u.email === liderEmail);
+    const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
+
+    // Período evaluado
+    const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
+    const periodoLabel = periodoObj?.label || 'Histórico';
+
+    // Evolución Q anterior vs actual
+    let evolucion: PDFReporteData['evolucion'] = undefined;
+    const allEvals = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const comp = comparePersonaBetweenPeriods(allEvals);
+    if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
+      const promAnt = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
+      const promAct = comp.qActual.reduce((s, c) => s + c.promedio, 0) / comp.qActual.length;
+      const diff = promAct - promAnt;
+      evolucion = {
+        promedioAnterior: promAnt,
+        promedioActual: promAct,
+        tendencia: diff > 0.15 ? 'mejora' : diff < -0.15 ? 'descenso' : 'estable',
+      };
+    }
+
+    // Comentarios del líder
+    const comentarios = evalsPersona
+      .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
+      .map(e => ({
+        fecha: new Date(e.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
+        skill: e.skillNombre,
+        comentario: e.comentarios!,
+        puntaje: e.puntaje,
+      }));
+
+    const pdfData: PDFReporteData = {
+      evaluadoNombre: mostrarEvaluado.nombre,
+      evaluadoEmail: selectedEmail,
+      rol: evalRol,
+      area: evalArea,
+      periodoEvaluado: periodoLabel,
+      liderEvaluadorNombre: liderNombre,
+      promedioGeneral,
+      seniorityAlcanzado,
+      radarDataHard,
+      radarDataSoft,
+      evolucion,
+      seniorityEsperado,
+      comentarios,
+      comentarioRRHH: comentarioRRHH.trim() || undefined,
+    };
+
+    const pdf = generarPDFIndividual(pdfData);
+    const nombreArchivo = `Evaluacion_${mostrarEvaluado.nombre.replace(/\s+/g, '_')}.pdf`;
+    pdf.save(nombreArchivo);
+    setShowPDFModal(false);
+    setComentarioRRHH('');
   };
 
   const handlePrevAreaLider = () => {
@@ -619,11 +707,34 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Botón exportar PDF (solo con persona seleccionada) */}
+            {selectedEmail && mostrarEvaluado && filteredEvaluations.length > 0 && canSeeAll(currentUser.rol) && (
+              <div className="mb-6 flex justify-end">
+                <button
+                  onClick={() => setShowPDFModal(true)}
+                  className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Descargar Reporte PDF
+                </button>
+              </div>
+            )}
+
             {/* Dumbbell Chart - Brecha Auto vs Jefe (solo con persona seleccionada) */}
             {selectedEmail && dumbbellData.length > 0 && (
               <DumbbellChart
                 data={dumbbellData}
                 title={`Brecha Auto vs Lider${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
+              />
+            )}
+
+            {/* Evolución Trimestral - Histórico con múltiples Q */}
+            {selectedEmail && evolucionData.length > 0 && (
+              <EvolucionChart
+                data={evolucionData}
+                title={`Evolución Trimestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
               />
             )}
 
@@ -1067,6 +1178,56 @@ export default function Dashboard() {
           </>
         )}
       </main>
+
+      {/* Modal PDF */}
+      {showPDFModal && mostrarEvaluado && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Generar Reporte PDF</h3>
+              <button
+                onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); }}
+                className="p-1.5 hover:bg-stone-100 rounded-lg transition"
+              >
+                <svg className="w-5 h-5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-stone-600 mb-4">
+              Reporte de <span className="font-semibold">{mostrarEvaluado.nombre}</span>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-stone-700 mb-2">
+                Observaciones de RRHH (opcional)
+              </label>
+              <textarea
+                value={comentarioRRHH}
+                onChange={(e) => setComentarioRRHH(e.target.value)}
+                placeholder="Agregar comentario para incluir en el reporte..."
+                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none h-28 text-sm"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); }}
+                className="flex-1 px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition font-semibold text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDescargarPDF}
+                className="flex-1 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition font-semibold text-sm flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Descargar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
