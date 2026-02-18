@@ -100,9 +100,9 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md mb-8">
+    <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6 transition-all hover:shadow-md mb-8">
       {title && (
-        <h3 className="text-lg font-bold text-slate-900 mb-2">
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2">
           {title}
         </h3>
       )}
@@ -111,7 +111,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
       </p>
 
       <ResponsiveContainer width="100%" height={400} minHeight={300}>
-        <ComposedChart data={data} margin={{ top: 10, right: 80, left: 10, bottom: 10 }}>
+        <ComposedChart data={data} margin={{ top: 10, right: 60, left: 0, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
 
           {/* Bandas de seniority como fondo */}

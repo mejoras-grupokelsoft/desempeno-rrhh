@@ -72,9 +72,9 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
   const toPercent = (val: number) => (val / SCALE_MAX) * 100;
 
   return (
-    <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md mb-8 relative">
+    <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6 transition-all hover:shadow-md mb-8 relative overflow-x-auto">
       {title && (
-        <h3 className="text-lg font-bold text-slate-900 mb-1">{title}</h3>
+        <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">{title}</h3>
       )}
       <p className="text-xs text-stone-500 mb-5">
         Brecha auto vs líder por skill. Arriba: Q anterior (desvanecido) · Abajo: Q actual (sólido). Indicador: si la brecha se redujo (Mejoró) o aumentó (Empeoró).
@@ -108,7 +108,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
       <div className="space-y-0">
         {/* Scale header */}
         <div className="flex items-center h-6">
-          <div className="w-[180px] flex-shrink-0" />
+          <div className="w-[100px] sm:w-[180px] flex-shrink-0" />
           <div className="flex-1 relative">
             <div className="flex justify-between text-[10px] text-stone-400 font-medium px-0">
               {[0, 1, 2, 3, 4, 5].map((tick) => (
@@ -141,7 +141,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
               <div className="flex items-start">
                 {/* Skill name */}
                 <div
-                  className="w-[180px] flex-shrink-0 text-xs font-medium text-stone-700 pr-3 text-right pt-1 leading-tight break-words hyphens-auto"
+                  className="w-[100px] sm:w-[180px] flex-shrink-0 text-xs font-medium text-stone-700 pr-2 sm:pr-3 text-right pt-1 leading-tight break-words hyphens-auto"
                   title={point.skill}
                 >
                   {point.skill}

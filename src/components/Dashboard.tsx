@@ -801,7 +801,7 @@ export default function Dashboard() {
             )}
 
             {/* Dumbbell Chart - Brecha Auto vs Jefe (solo con persona seleccionada) */}
-            {selectedEmail && dumbbellData.length > 0 && (
+            {selectedEmail && (
               <DumbbellChart
                 data={dumbbellData}
                 title={`Brecha Auto vs Lider${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
@@ -809,7 +809,7 @@ export default function Dashboard() {
             )}
 
             {/* Evolución Trimestral - Histórico con múltiples Q */}
-            {selectedEmail && evolucionData.length > 0 && (
+            {selectedEmail && (
               <EvolucionChart
                 data={evolucionData}
                 title={`Evolución Trimestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}

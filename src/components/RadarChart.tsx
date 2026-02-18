@@ -104,7 +104,7 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
 
   return (
     <div 
-      className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md group relative"
+      className="bg-white rounded-2xl shadow-sm border border-stone-100 p-4 sm:p-6 transition-all hover:shadow-md group relative"
       onClick={onClick}
       style={{ cursor: onClick ? 'pointer' : 'default' }}
     >
