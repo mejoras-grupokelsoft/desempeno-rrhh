@@ -917,7 +917,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
           </svg>
-          Gap Promedio (Auto vs Jefe)
+          Brecha Promedio (Auto vs Jefe)
         </h3>
         <p className="text-5xl font-bold text-orange-600">{metricas.gapPromedio.toFixed(2)}</p>
         <p className="text-sm text-stone-500 mt-2">
@@ -1345,7 +1345,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
               <th className="text-center p-3 font-bold text-stone-700">Líder</th>
               <th className="text-center p-3 font-bold text-stone-700">Final</th>
               <th className="text-center p-3 font-bold text-stone-700">Seniority</th>
-              <th className="text-center p-3 font-bold text-stone-700">Gap</th>
+              <th className="text-center p-3 font-bold text-stone-700">Brecha</th>
               <th className="text-center p-3 font-bold text-stone-700">PDF</th>
             </tr>
           </thead>
@@ -1498,7 +1498,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   <p className="font-semibold text-slate-900">{personaParaPDF.seniorityAlcanzado}</p>
                 </div>
                 <div>
-                  <span className="text-stone-500">Gap Auto-Líder:</span>
+                  <span className="text-stone-500">Brecha Auto-Líder:</span>
                   <p className="font-semibold text-slate-900">{personaParaPDF.gap.toFixed(2)}</p>
                 </div>
               </div>

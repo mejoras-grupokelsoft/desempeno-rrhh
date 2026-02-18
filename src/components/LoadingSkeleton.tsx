@@ -1,8 +1,8 @@
 // src/components/LoadingSkeleton.tsx
 
 /** Bloque de skeleton animado reutilizable */
-function SkeletonBlock({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse bg-stone-200 rounded-lg ${className}`} />;
+function SkeletonBlock({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`animate-pulse bg-stone-200 rounded-lg ${className}`} style={style} />;
 }
 
 /** Skeleton para las cards de métricas (3 columnas) */

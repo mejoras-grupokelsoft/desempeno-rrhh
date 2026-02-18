@@ -1140,7 +1140,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             <p className="font-bold text-slate-900 mb-1">{data.nombre}</p>
                             <p className="text-xs text-slate-600">Promedio: <span className="font-semibold text-blue-600">{data.y.toFixed(2)}</span></p>
                             <p className="text-xs text-slate-600">Seniority: <span className="font-semibold text-purple-600">{data.seniorityAlcanzado}</span></p>
-                            <p className="text-xs text-amber-600 mt-2">Click para ver detalle</p>
+                            <p className="text-xs text-amber-600 mt-2">Clic para ver detalle</p>
                           </div>
                         );
                       }
@@ -1349,7 +1349,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <th className="text-center p-3 font-bold text-stone-700">Mi Evaluación</th>
                     <th className="text-center p-3 font-bold text-stone-700">Final</th>
                     <th className="text-center p-3 font-bold text-stone-700">Seniority</th>
-                    <th className="text-center p-3 font-bold text-stone-700">Gap</th>
+                    <th className="text-center p-3 font-bold text-stone-700">Brecha</th>
                   </tr>
                 </thead>
                 <tbody>

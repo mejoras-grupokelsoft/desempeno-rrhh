@@ -26,8 +26,8 @@ const SENIORITY_BANDS = [
 
 const LINE_CONFIG = {
   esperado: { name: 'Seniority Esperado', color: '#a8a29e', dash: '6 3', width: 2 },
-  auto: { name: 'Autoevaluacion', color: '#1e40af', dash: undefined, width: 2 },
-  jefe: { name: 'Evaluacion Lider', color: '#0891b2', dash: undefined, width: 2 },
+  auto: { name: 'Autoevaluación', color: '#1e40af', dash: undefined, width: 2 },
+  jefe: { name: 'Evaluación Líder', color: '#0891b2', dash: undefined, width: 2 },
   promedio: { name: 'Promedio Final', color: '#dc2626', dash: undefined, width: 3 },
 };
 
@@ -107,7 +107,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
         </h3>
       )}
       <p className="text-xs text-stone-500 mb-6">
-        Evolucion del desempeno por trimestre con bandas de nivel de seniority
+        Evolución del desempeño por trimestre con bandas de nivel de seniority
       </p>
 
       <ResponsiveContainer width="100%" height={400} minHeight={300}>

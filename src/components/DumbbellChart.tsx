@@ -84,11 +84,11 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
       <div className="flex flex-wrap gap-4 mb-5 text-xs font-medium">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.auto }} />
-          <span className="text-stone-700">Autoevaluacion</span>
+          <span className="text-stone-700">Autoevaluación</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.jefe }} />
-          <span className="text-stone-700">Evaluacion Lider</span>
+          <span className="text-stone-700">Evaluación Líder</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent" style={{ borderBottomColor: COLORS.esperado }} />

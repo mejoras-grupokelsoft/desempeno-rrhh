@@ -56,7 +56,7 @@ export const SkillBreakdownInline: React.FC<SkillBreakdownInlineProps> = ({
         ) : (
         <>
           <div className="mb-2 text-xs text-stone-600">
-            Mostrando {data.length} skills (valores de 0 a 5)
+            Mostrando {data.length} competencias (valores de 0 a 5)
           </div>
           <div className="space-y-4">
             {data.map((item, index) => (
