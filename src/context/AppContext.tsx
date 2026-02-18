@@ -35,6 +35,7 @@ interface AppContextType {
   error: string | null;
   setCurrentUser: (user: User | null) => void;
   logout: () => void;
+  refetch: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -169,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error,
         setCurrentUser: handleSetCurrentUser,
         logout: handleLogout,
+        refetch: fetchData,
       }}
     >
       {children}
