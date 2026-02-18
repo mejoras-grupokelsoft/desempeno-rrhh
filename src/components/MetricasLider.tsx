@@ -7,6 +7,7 @@ import { getUniqueEvaluados } from '../utils/filters';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
+import { logger } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
 import type { Seniority } from '../types';
 
@@ -72,9 +73,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
     
     // FALLBACK: evaluadorEmail no está siendo parseado por el backend
     // Usar área + origen como alternativa temporal
-    console.warn('⚠️ IMPORTANTE: El campo evaluadorEmail NO está llegando desde el backend.');
-    console.warn('📋 Usando fallback: área + origen (puede mostrar evaluaciones incorrectas)');
-    console.warn('🔧 SOLUCIÓN: Contactar al admin para agregar evaluadorEmail en Google Apps Script');
+    logger.warn('El campo evaluadorEmail no está llegando desde el backend. Usando fallback por área + origen.');
     
     return evaluations.filter(e => {
       // Mostrar solo evaluaciones JEFE de tu área donde el origen sea LIDER

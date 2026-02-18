@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useApp } from '../context/AppContext';
+import { sanitizeEmail, logger } from '../utils/sanitize';
 
 interface GoogleUser {
   email: string;
@@ -26,12 +27,15 @@ export default function Login() {
 
   // Modo desarrollo bypass
   const handleDevLogin = () => {
-    const email = devEmail.toLowerCase().trim();
+    const email = sanitizeEmail(devEmail).toLowerCase().trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ingresá un email válido.');
+      return;
+    }
     const user = users.find((u) => u.email.toLowerCase().trim() === email);
     
     if (user) {
       setCurrentUser(user);
-      localStorage.setItem('currentUser', JSON.stringify(user));
     } else {
       setError(`Email "${email}" no encontrado en la base de datos.`);
     }
@@ -69,7 +73,7 @@ export default function Login() {
 
   const handleGoogleError = () => {
     setError('Error al autenticar con Google. Intentá de nuevo.');
-    console.error('❌ Google Login Error');
+    logger.error('Google Login Error');
   };
 
   if (loading) {
@@ -125,7 +129,12 @@ export default function Login() {
             </label>
             
             <div className="flex justify-center">
-              {isLoading ? (
+              {!hasGoogleClientId ? (
+                <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-xl text-sm text-center">
+                  <p className="font-semibold">Google OAuth no configurado</p>
+                  <p className="text-xs mt-1">Falta la variable <code>VITE_GOOGLE_CLIENT_ID</code> en el archivo .env</p>
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center gap-3 px-6 py-3 bg-stone-100 rounded-lg">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-500"></div>
                   <span className="text-stone-600 text-sm font-semibold">Verificando...</span>

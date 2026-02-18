@@ -11,6 +11,7 @@ import {
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
+import { sanitizeText, sanitizeEmailList } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -407,7 +408,7 @@ export default function Dashboard() {
       evolucion,
       seniorityEsperado,
       comentarios,
-      comentarioRRHH: comentarioRRHH.trim() || undefined,
+      comentarioRRHH: sanitizeText(comentarioRRHH) || undefined,
     };
 
     const nombreArchivo = `Evaluacion_${mostrarEvaluado.nombre.replace(/\s+/g, '_')}.pdf`;
@@ -432,16 +433,13 @@ export default function Dashboard() {
     const result = buildPDFData();
     if (!result || !mostrarEvaluado) return;
 
-    // Parsear destinatarios: el email del evaluado + los que agregó el usuario
-    const destinatariosExtra = emailDestinatarios
-      .split(/[,;\s]+/)
-      .map(e => e.trim())
-      .filter(e => e.includes('@'));
+    // Parsear y sanitizar destinatarios
+    const destinatariosExtra = sanitizeEmailList(emailDestinatarios);
 
     // Siempre incluir al evaluado, más los extras
     const todosDestinatarios = [selectedEmail, ...destinatariosExtra.filter(e => e !== selectedEmail)];
 
-    // Validar que haya al menos un destinatario con formato de email
+    // Validar que todos tengan formato de email válido
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const invalidos = todosDestinatarios.filter(e => !emailRegex.test(e));
     if (invalidos.length > 0) {
@@ -459,7 +457,7 @@ export default function Dashboard() {
       const cuerpoHTML = generarCuerpoEmail(
         mostrarEvaluado.nombre,
         result.periodoLabel,
-        comentarioRRHH.trim() || undefined
+        sanitizeText(comentarioRRHH) || undefined
       );
 
       const response = await enviarEmailConPDF({

@@ -1,7 +1,30 @@
 // src/context/AppContext.tsx
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, Evaluation, SkillMatrix, ApiResponse, UserRole } from '../types';
+import { logger } from '../utils/sanitize';
+import { googleLogout } from '@react-oauth/google';
+
+// ── Constantes de sesión ──────────────────────────────────────────────
+const SESSION_KEY = 'currentUser';
+const SESSION_TS_KEY = 'sessionTimestamp';
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+/** Verifica si la sesión almacenada expiró */
+function isSessionExpired(): boolean {
+  const ts = localStorage.getItem(SESSION_TS_KEY);
+  if (!ts) return true;
+  return Date.now() - Number(ts) > SESSION_TTL_MS;
+}
+
+/** Limpia todos los datos de sesión del localStorage */
+function clearSession(): void {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_TS_KEY);
+  localStorage.removeItem('lastSelectedEmail');
+  localStorage.removeItem('lastSelectedArea');
+  sessionStorage.clear();
+}
 
 interface AppContextType {
   users: User[];
@@ -30,14 +53,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadUserFromStorage();
   }, []);
 
-  // Sincronizar currentUser cuando cambian los datos de usuarios
+  // Validar usuario almacenado contra whitelist cuando llegan datos del API
   useEffect(() => {
     if (currentUser && users.length > 0) {
-      const updatedUser = users.find(u => u.email === currentUser.email);
-      if (updatedUser && JSON.stringify(updatedUser) !== JSON.stringify(currentUser)) {
-        // Usuario encontrado con datos actualizados
+      const updatedUser = users.find(
+        u => u.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+      );
+
+      if (!updatedUser) {
+        // Usuario fue removido de la BD → cerrar sesión
+        logger.warn('Usuario almacenado no encontrado en whitelist, cerrando sesión');
+        handleLogout();
+        return;
+      }
+
+      if (JSON.stringify(updatedUser) !== JSON.stringify(currentUser)) {
+        // Datos actualizados (rol, area, nombre, etc.)
         setCurrentUser(updatedUser);
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
       }
     }
   }, [users]);
@@ -81,20 +114,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al cargar datos';
       setError(message);
-      console.error('❌ Error fetching data:', err);
+      logger.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const loadUserFromStorage = () => {
-    const stored = localStorage.getItem('currentUser');
+    // Verificar expiración de sesión (24h TTL)
+    if (isSessionExpired()) {
+      clearSession();
+      return;
+    }
+
+    const stored = localStorage.getItem(SESSION_KEY);
     if (stored) {
       try {
-        const user = JSON.parse(stored);
-        setCurrentUser(user);
-      } catch (e) {
-        localStorage.removeItem('currentUser');
+        const user: User = JSON.parse(stored);
+        // Validación básica de estructura
+        if (user.email && user.nombre && user.rol) {
+          setCurrentUser(user);
+        } else {
+          clearSession();
+        }
+      } catch {
+        clearSession();
       }
     }
   };
@@ -102,14 +146,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const handleSetCurrentUser = (user: User | null) => {
     setCurrentUser(user);
     if (user) {
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+      localStorage.setItem(SESSION_TS_KEY, String(Date.now()));
     }
   };
 
-  const logout = () => {
+  const handleLogout = useCallback(() => {
     setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-  };
+    clearSession();
+    // Revocar sesión de Google OAuth
+    try { googleLogout(); } catch { /* silently ignore */ }
+  }, []);
 
   return (
     <AppContext.Provider
