@@ -349,10 +349,14 @@ export default function Dashboard() {
   };
 
   // ===== CONSTRUIR DATOS PDF (compartido entre descargar y enviar) =====
+  // SIEMPRE usa Q Actual para los datos del radar, independientemente del filtro elegido en pantalla
   const buildPDFData = (): { pdfData: PDFReporteData; nombreArchivo: string; periodoLabel: string } | null => {
     if (!selectedEmail || !mostrarEvaluado) return null;
 
-    const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    // Evaluaciones del Q Actual para el radar (siempre)
+    const allEvalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const evalsQActual = filterByPeriod(allEvalsPersona, 'Q_ACTUAL');
+    const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
     const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
 
@@ -368,12 +372,10 @@ export default function Dashboard() {
     const liderUser = users.find(u => u.email === liderEmail);
     const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
-    const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
-    const periodoLabel = periodoObj?.label || 'Histórico';
+    const periodoLabel = 'Q Actual';
 
     let evolucion: PDFReporteData['evolucion'] = undefined;
-    const allEvals = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
-    const comp = comparePersonaBetweenPeriods(allEvals);
+    const comp = comparePersonaBetweenPeriods(allEvalsPersona);
     if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
       const promAnt = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
       const promAct = comp.qActual.reduce((s, c) => s + c.promedio, 0) / comp.qActual.length;
@@ -385,14 +387,15 @@ export default function Dashboard() {
       };
     }
 
-    const comentarios = evalsPersona
-      .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
-      .map(e => ({
-        fecha: new Date(e.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
-        skill: e.skillNombre,
-        comentario: e.comentarios!,
-        puntaje: e.puntaje,
-      }));
+    const comentarios: PDFReporteData['comentarios'] = [];
+    const comentarioAuto = evalsPersona.find(e => e.tipoEvaluador === 'AUTO' && e.comentarios && e.comentarios.trim() !== '');
+    if (comentarioAuto) {
+      comentarios.push({ tipo: 'Autoevaluación', comentario: comentarioAuto.comentarios! });
+    }
+    const comentarioJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '');
+    if (comentarioJefe) {
+      comentarios.push({ tipo: 'Líder', comentario: comentarioJefe.comentarios! });
+    }
 
     const pdfData: PDFReporteData = {
       evaluadoNombre: mostrarEvaluado.nombre,

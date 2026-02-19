@@ -267,9 +267,9 @@ export function calcularBandasSeniority<T extends {
   };
 
   const getSeniority = (score: number): string => {
-    if (score >= 4) return 'Senior';
-    if (score >= 3) return 'Semi Senior';
-    if (score >= 2) return 'Junior';
+    if (score >= 3) return 'Senior';
+    if (score >= 2) return 'Semi Senior';
+    if (score >= 1) return 'Junior';
     return 'Trainee';
   };
 
@@ -400,9 +400,9 @@ export function calcularDesgloseSkills<T extends {
     const cambio = q2 - q1;
 
     let estado = '🟡 Junior';
-    if (q2 >= 4) estado = '🟢 Senior';
-    else if (q2 >= 3) estado = '🔵 Semi Senior';
-    else if (q2 >= 2) estado = '🟡 Junior';
+    if (q2 >= 3) estado = '🟢 Senior';
+    else if (q2 >= 2) estado = '🔵 Semi Senior';
+    else if (q2 >= 1) estado = '🟡 Junior';
     else estado = '🟠 Trainee';
 
     const skillData = {

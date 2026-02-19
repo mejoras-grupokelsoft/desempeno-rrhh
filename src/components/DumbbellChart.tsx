@@ -20,7 +20,7 @@ const SCALE_MAX = 5;
 const COLORS = {
   auto: '#1e40af',
   jefe: '#0891b2',
-  esperado: '#a8a29e',
+  esperado: '#78716c',
   gapAnterior: '#d6d3d1',
   gapActual: '#ef4444',
 };
@@ -84,15 +84,15 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
       <div className="flex flex-wrap gap-4 mb-5 text-xs font-medium">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.auto }} />
-          <span className="text-stone-700">Autoevaluación</span>
+          <span className="text-stone-700">Autoevaluacion</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS.jefe }} />
-          <span className="text-stone-700">Evaluación Líder</span>
+          <span className="text-stone-700">Evaluacion Lider</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[8px] border-l-transparent border-r-transparent" style={{ borderBottomColor: COLORS.esperado }} />
-          <span className="text-stone-700">Esperado</span>
+          <span className="text-stone-700">Seniority</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-[3px] rounded" style={{ backgroundColor: COLORS.gapAnterior }} />
@@ -381,7 +381,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
             {p.esperado > 0 && (
               <div className="mt-1.5 pt-1.5 border-t border-stone-100 flex items-center gap-1.5">
                 <div className="w-0 h-0 border-l-[3px] border-r-[3px] border-b-[5px] border-l-transparent border-r-transparent" style={{ borderBottomColor: COLORS.esperado }} />
-                <span className="text-stone-500">Esperado:</span>
+                <span className="text-stone-500">Seniority:</span>
                 <span className="font-bold" style={{ color: COLORS.esperado }}>{p.esperado.toFixed(2)}</span>
               </div>
             )}

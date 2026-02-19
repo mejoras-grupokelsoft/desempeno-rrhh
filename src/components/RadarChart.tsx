@@ -31,7 +31,7 @@ const CustomTooltip = ({ active, payload }: any) => {
       <div className="space-y-2">
         {payload.map((entry: any) => {
           const colors: Record<string, string> = {
-            'Seniority Esperado': 'text-stone-500',
+            'Seniority': 'text-stone-600',
             'Autoevaluación': 'text-blue-700',
             'Evaluación Líder': 'text-cyan-600',
             'Promedio Final': 'text-red-600'
@@ -115,7 +115,7 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            Clic para ver detalle
+            Click para ver detalle
           </div>
         </div>
       )}
@@ -139,13 +139,13 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
             tick={{ fill: '#78716c', fontSize: 11 }}
           />
 
-          {/* Pentágono Esperado (Target) - Stone punteado */}
+          {/* Pentágono Seniority - Gris oscuro punteado */}
           <Radar
-            name="Seniority Esperado"
+            name="Seniority"
             dataKey="esperado"
-            stroke="#d6d3d1"
+            stroke="#78716c"
             fill="transparent"
-            strokeWidth={2}
+            strokeWidth={2.5}
             strokeDasharray="4 4"
           />
 

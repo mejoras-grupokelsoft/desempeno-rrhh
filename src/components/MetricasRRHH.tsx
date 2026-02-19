@@ -436,8 +436,10 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   const handleGenerarPDFIndividual = (enviarEmail: boolean = false) => {
     if (!personaParaPDF) return;
 
-    // Obtener evaluaciones de esta persona
-    const evalsPersona = filteredEvaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
+    // SIEMPRE usar Q Actual para el PDF, independientemente del filtro en pantalla
+    const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
+    const evalsQActual = filterByPeriod(allEvalsPersona, 'Q_ACTUAL');
+    const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
     
     // Separar por HARD y SOFT
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
@@ -469,13 +471,11 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     const fechas = evalsPersona.map(e => new Date(e.fecha));
     const fechaMasReciente = new Date(Math.max(...fechas.map(f => f.getTime())));
 
-    // Período evaluado
-    const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
-    const periodoLabel = periodoObj?.label || 'Histórico';
+    // Período evaluado: siempre Q Actual
+    const periodoLabel = 'Q Actual';
 
     // Evolución (comparar Q anterior vs Q actual)
     let evolucion: PDFReporteData['evolucion'] = undefined;
-    const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
     const comp = comparePersonaBetweenPeriods(allEvalsPersona);
     if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
       const promAnterior = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
@@ -488,15 +488,16 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       };
     }
 
-    // Comentarios del líder
-    const comentarios = evalsPersona
-      .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
-      .map(e => ({
-        fecha: new Date(e.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }),
-        skill: e.skillNombre,
-        comentario: e.comentarios!,
-        puntaje: e.puntaje,
-      }));
+    // Comentarios (1 de autoevaluación + 1 del líder)
+    const comentarios: PDFReporteData['comentarios'] = [];
+    const comentarioAuto = evalsPersona.find(e => e.tipoEvaluador === 'AUTO' && e.comentarios && e.comentarios.trim() !== '');
+    if (comentarioAuto) {
+      comentarios.push({ tipo: 'Autoevaluación', comentario: comentarioAuto.comentarios! });
+    }
+    const comentarioJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '');
+    if (comentarioJefe) {
+      comentarios.push({ tipo: 'Líder', comentario: comentarioJefe.comentarios! });
+    }
 
     const pdfData: PDFReporteData = {
       evaluadoNombre: personaParaPDF.nombre,
@@ -979,19 +980,19 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
               <p className="text-xs text-stone-600 mb-3">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3" style={{ backgroundColor: '#fef9c3' }}></span>
-                  <span className="font-semibold">Trainee (0-2)</span>
+                  <span className="font-semibold">Trainee (0-1)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#fed7aa' }}></span>
-                  <span className="font-semibold">Junior (2-3)</span>
+                  <span className="font-semibold">Junior (1-2)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#d1fae5' }}></span>
-                  <span className="font-semibold">Semi Senior (3-4)</span>
+                  <span className="font-semibold">Semi Senior (2-3)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#dbeafe' }}></span>
-                  <span className="font-semibold">Senior (4-5)</span>
+                  <span className="font-semibold">Senior (3-4)</span>
                 </span>
               </p>
             </div>
@@ -1064,14 +1065,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                 />
                 
                 {/* Bandas de fondo usando ReferenceArea */}
-                {/* Trainee: 0-2 */}
-                <Area type="monotone" dataKey={() => 2} fill="url(#traineeGrad)" stroke="none" />
-                {/* Junior: 2-3 */}
-                <Area type="monotone" dataKey={() => 3} fill="url(#juniorGrad)" stroke="none" />
-                {/* Semi Senior: 3-4 */}
-                <Area type="monotone" dataKey={() => 4} fill="url(#semiSeniorGrad)" stroke="none" />
-                {/* Senior: 4-5 */}
-                <Area type="monotone" dataKey={() => 5} fill="url(#seniorGrad)" stroke="none" />
+                {/* Trainee: 0-1 */}
+                <Area type="monotone" dataKey={() => 1} fill="url(#traineeGrad)" stroke="none" />
+                {/* Junior: 1-2 */}
+                <Area type="monotone" dataKey={() => 2} fill="url(#juniorGrad)" stroke="none" />
+                {/* Semi Senior: 2-3 */}
+                <Area type="monotone" dataKey={() => 3} fill="url(#semiSeniorGrad)" stroke="none" />
+                {/* Senior: 3-4 */}
+                <Area type="monotone" dataKey={() => 4} fill="url(#seniorGrad)" stroke="none" />
                 
                 {/* Puntos Q1 (cola del cometa - gris hueco) */}
                 <Scatter 
@@ -1169,19 +1170,19 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
               <p className="text-xs text-stone-600 mb-3">
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3" style={{ backgroundColor: '#fef9c3' }}></span>
-                  <span className="font-semibold">Trainee (0-2)</span>
+                  <span className="font-semibold">Trainee (0-1)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#fed7aa' }}></span>
-                  <span className="font-semibold">Junior (2-3)</span>
+                  <span className="font-semibold">Junior (1-2)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#d1fae5' }}></span>
-                  <span className="font-semibold">Semi Senior (3-4)</span>
+                  <span className="font-semibold">Semi Senior (2-3)</span>
                 </span>
                 <span className="inline-flex items-center gap-1 ml-2">
                   <span className="w-3 h-3" style={{ backgroundColor: '#dbeafe' }}></span>
-                  <span className="font-semibold">Senior (4-5)</span>
+                  <span className="font-semibold">Senior (3-4)</span>
                 </span>
               </p>
             </div>
@@ -1254,14 +1255,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                 />
                 
                 {/* Bandas de fondo usando gradientes */}
-                {/* Trainee: 0-2 */}
-                <Area type="monotone" dataKey={() => 2} fill="url(#traineeGradLideres)" stroke="none" />
-                {/* Junior: 2-3 */}
-                <Area type="monotone" dataKey={() => 3} fill="url(#juniorGradLideres)" stroke="none" />
-                {/* Semi Senior: 3-4 */}
-                <Area type="monotone" dataKey={() => 4} fill="url(#semiSeniorGradLideres)" stroke="none" />
-                {/* Senior: 4-5 */}
-                <Area type="monotone" dataKey={() => 5} fill="url(#seniorGradLideres)" stroke="none" />
+                {/* Trainee: 0-1 */}
+                <Area type="monotone" dataKey={() => 1} fill="url(#traineeGradLideres)" stroke="none" />
+                {/* Junior: 1-2 */}
+                <Area type="monotone" dataKey={() => 2} fill="url(#juniorGradLideres)" stroke="none" />
+                {/* Semi Senior: 2-3 */}
+                <Area type="monotone" dataKey={() => 3} fill="url(#semiSeniorGradLideres)" stroke="none" />
+                {/* Senior: 3-4 */}
+                <Area type="monotone" dataKey={() => 4} fill="url(#seniorGradLideres)" stroke="none" />
                 
                 {/* Puntos Q1 (cola del cometa - gris hueco) */}
                 <Scatter 

@@ -18,14 +18,14 @@ interface EvolucionChartProps {
 }
 
 const SENIORITY_BANDS = [
-  { y1: 0, y2: 2, fill: '#fef2f2', label: 'Trainee', color: '#dc2626' },
-  { y1: 2, y2: 3, fill: '#fefce8', label: 'Junior', color: '#ca8a04' },
-  { y1: 3, y2: 4, fill: '#eff6ff', label: 'Semi Senior', color: '#2563eb' },
-  { y1: 4, y2: 5, fill: '#f0fdf4', label: 'Senior', color: '#16a34a' },
+  { y1: 0, y2: 1, fill: '#fef2f2', label: 'Trainee', color: '#dc2626' },
+  { y1: 1, y2: 2, fill: '#fefce8', label: 'Junior', color: '#ca8a04' },
+  { y1: 2, y2: 3, fill: '#eff6ff', label: 'Semi Senior', color: '#2563eb' },
+  { y1: 3, y2: 4, fill: '#f0fdf4', label: 'Senior', color: '#16a34a' },
 ];
 
 const LINE_CONFIG = {
-  esperado: { name: 'Seniority Esperado', color: '#a8a29e', dash: '6 3', width: 2 },
+  esperado: { name: 'Seniority', color: '#78716c', dash: '6 3', width: 2.5 },
   auto: { name: 'Autoevaluación', color: '#1e40af', dash: undefined, width: 2 },
   jefe: { name: 'Evaluación Líder', color: '#0891b2', dash: undefined, width: 2 },
   promedio: { name: 'Promedio Final', color: '#dc2626', dash: undefined, width: 3 },
@@ -107,7 +107,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
         </h3>
       )}
       <p className="text-xs text-stone-500 mb-6">
-        Evolución del desempeño por trimestre con bandas de nivel de seniority
+        Evolucion del desempeno por trimestre con bandas de nivel de seniority
       </p>
 
       <ResponsiveContainer width="100%" height={400} minHeight={300}>

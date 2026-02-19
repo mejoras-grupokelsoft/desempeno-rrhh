@@ -320,9 +320,9 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
     
     // Mapear seniority a puntaje esperado
     const puntajeEsperado = 
-      seniorityEsperadoPersona === 'Senior' ? 4.0 :
-      seniorityEsperadoPersona === 'Semi Senior' ? 3.0 :
-      seniorityEsperadoPersona === 'Junior' ? 2.0 : 1.0;
+      seniorityEsperadoPersona === 'Senior' ? 3.0 :
+      seniorityEsperadoPersona === 'Semi Senior' ? 2.0 :
+      seniorityEsperadoPersona === 'Junior' ? 1.0 : 0.0;
     
     // Separar por tipo de skill
     const hardSkills = new Set<string>();
@@ -580,62 +580,145 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         {/* Gráfico de Línea - Evolución de Skills */}
         {lineChartData.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                 </svg>
               </div>
-              <span>Evolución de Skills (Trimestre Anterior vs Actual)</span>
+              <span>Evolución de Competencias</span>
             </h3>
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={lineChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="skill" 
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                />
-                <YAxis 
-                  domain={[0, 5]} 
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
-                  label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }}
-                />
-                <RechartsTooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#ffffff', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '8px',
-                    fontSize: '12px'
-                  }}
-                  labelFormatter={(label, payload) => {
-                    if (payload && payload[0]) {
-                      return payload[0].payload.skillCompleto;
-                    }
-                    return label;
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="Q Anterior" 
-                  stroke="#94a3b8" 
-                  strokeWidth={2}
-                  dot={{ fill: '#64748b', r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="Q Actual" 
-                  stroke="#8b5cf6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#7c3aed', r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <p className="text-xs text-stone-500 mb-6">Comparación entre el trimestre anterior y el actual, separado por tipo de competencia</p>
+
+            {/* Hard Skills */}
+            {lineChartData.filter(d => d.tipo === 'HARD').length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">Hard Skills</span>
+                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={lineChartData.filter(d => d.tipo === 'HARD')}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="skill" 
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis 
+                      domain={[0, 5]} 
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#ffffff', 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      labelFormatter={(label, payload) => {
+                        if (payload && payload[0]) {
+                          return payload[0].payload.skillCompleto;
+                        }
+                        return label;
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="Q Anterior" 
+                      stroke="#93c5fd"
+                      strokeWidth={2}
+                      strokeDasharray="5 3"
+                      dot={{ fill: '#93c5fd', r: 4, strokeWidth: 0 }}
+                      activeDot={{ r: 6 }}
+                      name="Q Anterior (Hard)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="Q Actual" 
+                      stroke="#1e40af" 
+                      strokeWidth={3}
+                      dot={{ fill: '#1e40af', r: 5, strokeWidth: 0 }}
+                      activeDot={{ r: 7 }}
+                      name="Q Actual (Hard)"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Soft Skills */}
+            {lineChartData.filter(d => d.tipo === 'SOFT').length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-6 h-6 bg-purple-50 rounded flex items-center justify-center">
+                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">Soft Skills</span>
+                </div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={lineChartData.filter(d => d.tipo === 'SOFT')}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="skill" 
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                    />
+                    <YAxis 
+                      domain={[0, 5]} 
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#ffffff', 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      labelFormatter={(label, payload) => {
+                        if (payload && payload[0]) {
+                          return payload[0].payload.skillCompleto;
+                        }
+                        return label;
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="Q Anterior" 
+                      stroke="#d8b4fe"
+                      strokeWidth={2}
+                      strokeDasharray="5 3"
+                      dot={{ fill: '#d8b4fe', r: 4, strokeWidth: 0 }}
+                      activeDot={{ r: 6 }}
+                      name="Q Anterior (Soft)"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="Q Actual" 
+                      stroke="#7c3aed" 
+                      strokeWidth={3}
+                      dot={{ fill: '#7c3aed', r: 5, strokeWidth: 0 }}
+                      activeDot={{ r: 7 }}
+                      name="Q Actual (Soft)"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         )}
 
@@ -1069,19 +1152,19 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
               <div className="flex flex-wrap gap-4 mb-4 justify-center text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: '#fef3c7' }}></div>
-                  <span className="text-stone-600">Trainee (0-2)</span>
+                  <span className="text-stone-600">Trainee (0-1)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: '#bfdbfe' }}></div>
-                  <span className="text-stone-600">Junior (2-3)</span>
+                  <span className="text-stone-600">Junior (1-2)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: '#a5f3fc' }}></div>
-                  <span className="text-stone-600">Semi Senior (3-4)</span>
+                  <span className="text-stone-600">Semi Senior (2-3)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded" style={{ backgroundColor: '#bbf7d0' }}></div>
-                  <span className="text-stone-600">Senior (4-5)</span>
+                  <span className="text-stone-600">Senior (3-4)</span>
                 </div>
               </div>
 
@@ -1090,15 +1173,15 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                   <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
                   
                   {/* Bandas de color para los rangos de seniority */}
-                  <ReferenceArea y1={0} y2={2} fill="#fef3c7" fillOpacity={0.6} />
-                  <ReferenceArea y1={2} y2={3} fill="#bfdbfe" fillOpacity={0.6} />
-                  <ReferenceArea y1={3} y2={4} fill="#a5f3fc" fillOpacity={0.6} />
-                  <ReferenceArea y1={4} y2={5} fill="#bbf7d0" fillOpacity={0.6} />
+                  <ReferenceArea y1={0} y2={1} fill="#fef3c7" fillOpacity={0.6} />
+                  <ReferenceArea y1={1} y2={2} fill="#bfdbfe" fillOpacity={0.6} />
+                  <ReferenceArea y1={2} y2={3} fill="#a5f3fc" fillOpacity={0.6} />
+                  <ReferenceArea y1={3} y2={4} fill="#bbf7d0" fillOpacity={0.6} />
                   
                   {/* Líneas de referencia */}
-                  <ReferenceLine y={2} stroke="#78350f" strokeDasharray="3 3" strokeWidth={1} />
-                  <ReferenceLine y={3} stroke="#1e40af" strokeDasharray="3 3" strokeWidth={1} />
-                  <ReferenceLine y={4} stroke="#0e7490" strokeDasharray="3 3" strokeWidth={1} />
+                  <ReferenceLine y={1} stroke="#78350f" strokeDasharray="3 3" strokeWidth={1} />
+                  <ReferenceLine y={2} stroke="#1e40af" strokeDasharray="3 3" strokeWidth={1} />
+                  <ReferenceLine y={3} stroke="#0e7490" strokeDasharray="3 3" strokeWidth={1} />
                   
                   <XAxis 
                     type="number"
@@ -1140,7 +1223,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             <p className="font-bold text-slate-900 mb-1">{data.nombre}</p>
                             <p className="text-xs text-slate-600">Promedio: <span className="font-semibold text-blue-600">{data.y.toFixed(2)}</span></p>
                             <p className="text-xs text-slate-600">Seniority: <span className="font-semibold text-purple-600">{data.seniorityAlcanzado}</span></p>
-                            <p className="text-xs text-amber-600 mt-2">Clic para ver detalle</p>
+                            <p className="text-xs text-amber-600 mt-2">Click para ver detalle</p>
                           </div>
                         );
                       }
@@ -1349,7 +1432,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <th className="text-center p-3 font-bold text-stone-700">Mi Evaluación</th>
                     <th className="text-center p-3 font-bold text-stone-700">Final</th>
                     <th className="text-center p-3 font-bold text-stone-700">Seniority</th>
-                    <th className="text-center p-3 font-bold text-stone-700">Brecha</th>
+                    <th className="text-center p-3 font-bold text-stone-700">Gap</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1447,30 +1530,12 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
               <p className="text-amber-900 text-lg font-semibold mb-2">
                 No hay evaluaciones de equipo para mostrar
               </p>
-              <p className="text-amber-700 text-sm mb-2">
-                Tu email: <span className="font-mono bg-amber-100 px-2 py-1 rounded">{currentUser.email}</span>
+              <p className="text-amber-700 text-sm mt-4">
+                ¿Necesitás ver más información? Contactate con el equipo de Capital Humano:
               </p>
-              <div className="mt-4 p-4 bg-red-50 rounded-lg border-2 border-red-300 text-left">
-                <p className="text-red-900 font-bold text-sm mb-2">🚨 PROBLEMA DETECTADO:</p>
-                <p className="text-red-800 text-xs mb-3">
-                  El campo <strong>"Evaluador Email"</strong> NO está llegando desde el backend (Google Apps Script).
-                  Esto impide identificar correctamente quién hizo cada evaluación.
-                </p>
-                <p className="text-red-700 text-xs font-semibold mb-2">📋 SOLUCIÓN REQUERIDA:</p>
-                <ul className="text-red-700 text-xs space-y-1 list-disc list-inside ml-2">
-                  <li>Contactar al administrador del sistema</li>
-                  <li>Verificar que Google Apps Script esté parseando la columna "Evaluador Email"</li>
-                  <li>Confirmar que el mapping en el backend incluya: <code className="bg-red-100 px-1">evaluadorEmail</code></li>
-                </ul>
-              </div>
-              <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200 text-left">
-                <p className="text-blue-900 font-semibold text-sm mb-2">💡 Mientras tanto (modo fallback):</p>
-                <p className="text-blue-700 text-xs">
-                  El sistema está mostrando evaluaciones JEFE de tu área con origen=LIDER, 
-                  pero esto puede incluir evaluaciones de otros líderes. 
-                  Los datos NO son 100% precisos hasta que se solucione el backend.
-                </p>
-              </div>
+              <p className="text-amber-800 text-sm font-semibold mt-2">
+                📧 capitalhumano@kelsoft.com
+              </p>
             </div>
           )}
         </div>

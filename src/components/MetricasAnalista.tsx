@@ -515,7 +515,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                 <RechartsTooltip 
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px' }}
                 />
-                <ReferenceLine y={seniorityEsperado === 'Junior' ? 2.0 : seniorityEsperado === 'Semi Senior' ? 3.0 : 4.0} stroke="#7c3aed" strokeDasharray="5 5" strokeWidth={2} label={{ value: `Meta ${seniorityEsperado}`, fill: '#7c3aed', fontSize: 11 }} />
+                <ReferenceLine y={seniorityEsperado === 'Junior' ? 1.0 : seniorityEsperado === 'Semi Senior' ? 2.0 : 3.0} stroke="#7c3aed" strokeDasharray="5 5" strokeWidth={2} label={{ value: `Meta ${seniorityEsperado}`, fill: '#7c3aed', fontSize: 11 }} />
                 <Line type="monotone" dataKey="auto" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Mi Puntuación" />
                 <Line type="monotone" dataKey="jefe" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} name="Evaluación Líder" />
                 <Line type="monotone" dataKey="promedio" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} name="Promedio" />

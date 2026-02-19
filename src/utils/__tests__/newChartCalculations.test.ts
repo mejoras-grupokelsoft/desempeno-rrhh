@@ -120,7 +120,7 @@ describe('calcularBandasSeniority', () => {
     const hace4Meses = new Date(ahora);
     hace4Meses.setMonth(hace4Meses.getMonth() - 4);
 
-    // Q1: jefe=2 → Junior, Q2: jefe=4 → Senior
+    // Q1: jefe=2 → Semi Senior, Q2: jefe=4 → Senior
     const evals = [
       crearEval({ fecha: hace4Meses.toISOString().split('T')[0], tipoEvaluador: 'JEFE', puntaje: 2, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
       crearEval({ fecha: hace1Mes.toISOString().split('T')[0], tipoEvaluador: 'JEFE', puntaje: 4, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
@@ -128,7 +128,7 @@ describe('calcularBandasSeniority', () => {
 
     const result = calcularBandasSeniority(evals, 'j@t.com');
     expect(result).toHaveLength(1);
-    expect(result[0].q1Seniority).toBe('Junior');
+    expect(result[0].q1Seniority).toBe('Semi Senior');
     expect(result[0].q2Seniority).toBe('Senior');
     expect(result[0].saltoNivel).toBe(true);
   });
@@ -143,7 +143,7 @@ describe('calcularBandasSeniority', () => {
     const hace4Meses = new Date(ahora);
     hace4Meses.setMonth(hace4Meses.getMonth() - 4);
 
-    // Q1: jefe=3, Q2: jefe=3 → ambos Semi Senior
+    // Q1: jefe=3, Q2: jefe=3 → ambos Senior
     const evals = [
       crearEval({ fecha: hace4Meses.toISOString().split('T')[0], tipoEvaluador: 'JEFE', puntaje: 3, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
       crearEval({ fecha: hace1Mes.toISOString().split('T')[0], tipoEvaluador: 'JEFE', puntaje: 3, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
@@ -161,7 +161,7 @@ describe('calcularBandasSeniority', () => {
     const hace1Mes = new Date(ahora);
     hace1Mes.setMonth(hace1Mes.getMonth() - 1);
 
-    // Auto=4, Jefe=3 → min(3.5, 3) = 3 → Semi Senior
+    // Auto=4, Jefe=3 → min(3.5, 3) = 3 → Senior
     const evals = [
       crearEval({ fecha: hace1Mes.toISOString().split('T')[0], tipoEvaluador: 'AUTO', puntaje: 4, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
       crearEval({ fecha: hace1Mes.toISOString().split('T')[0], tipoEvaluador: 'JEFE', puntaje: 3, evaluadoEmail: 'j@t.com', evaluadoNombre: 'J' }),
@@ -169,7 +169,7 @@ describe('calcularBandasSeniority', () => {
 
     const result = calcularBandasSeniority(evals, 'j@t.com');
     expect(result[0].q2Score).toBe(3);
-    expect(result[0].q2Seniority).toBe('Semi Senior');
+    expect(result[0].q2Seniority).toBe('Senior');
   });
 });
 

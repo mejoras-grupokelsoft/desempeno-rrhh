@@ -34,8 +34,8 @@ export interface PDFReporteData {
   // 8. Seniority
   seniorityEsperado: string;
 
-  // 9. Comentarios
-  comentarios: { fecha: string; skill: string; comentario: string; puntaje: number }[];
+  // 9. Comentarios (1 de autoevaluación + 1 del líder)
+  comentarios: { tipo: string; comentario: string }[];
 
   // Extra: comentario libre de RRHH (textarea al generar)
   comentarioRRHH?: string;
@@ -60,8 +60,8 @@ function nivelDescripcion(promedio: number): string {
 
 function brechaLabel(diff: number): { text: string; color: readonly [number, number, number] } {
   const abs = Math.abs(diff);
-  if (abs <= 0.3) return { text: 'Coincidencia alta', color: GREEN };
-  if (abs <= 0.8) return { text: 'Diferencia moderada', color: AMBER };
+  if (abs === 0) return { text: 'Coincidencia alta', color: GREEN };
+  if (abs <= 1) return { text: 'Diferencia moderada', color: AMBER };
   return { text: 'Diferencia significativa', color: RED };
 }
 
@@ -189,23 +189,24 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
 
     autoTable(doc, {
       startY: y,
-      head: [['Habilidad', 'Auto', 'Líder', 'Diferencia']],
+      head: [['Habilidad', 'Autoevaluación', 'Líder', 'Promedio Ponderado', 'Diferencia (Auto vs Líder)']],
       body: data.radarDataHard.map(s => {
         const diff = s.auto - s.jefe;
-        return [s.skill, s.auto.toFixed(2), s.jefe.toFixed(2), (diff >= 0 ? '+' : '') + diff.toFixed(2)];
+        return [s.skill, s.auto.toFixed(2), s.jefe.toFixed(2), s.promedio.toFixed(2), (diff >= 0 ? '+' : '') + diff.toFixed(2)];
       }),
       theme: 'striped',
       headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 9 },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { halign: 'center', cellWidth: 25 },
-        2: { halign: 'center', cellWidth: 25 },
+        0: { cellWidth: 50 },
+        1: { halign: 'center', cellWidth: 28 },
+        2: { halign: 'center', cellWidth: 20 },
         3: { halign: 'center', cellWidth: 30 },
+        4: { halign: 'center', cellWidth: 38 },
       },
       margin: { left: margin, right: margin },
       didParseCell: (hookData) => {
-        if (hookData.column.index === 3 && hookData.section === 'body') {
+        if (hookData.column.index === 4 && hookData.section === 'body') {
           const v = parseFloat(hookData.cell.text[0]);
           hookData.cell.styles.textColor = v > 0.3 ? [...AMBER] : v < -0.3 ? [...RED] : [...GREEN];
           hookData.cell.styles.fontStyle = 'bold';
@@ -229,23 +230,24 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
 
     autoTable(doc, {
       startY: y,
-      head: [['Habilidad', 'Auto', 'Líder', 'Diferencia']],
+      head: [['Habilidad', 'Autoevaluación', 'Líder', 'Promedio Ponderado', 'Diferencia (Auto vs Líder)']],
       body: data.radarDataSoft.map(s => {
         const diff = s.auto - s.jefe;
-        return [s.skill, s.auto.toFixed(2), s.jefe.toFixed(2), (diff >= 0 ? '+' : '') + diff.toFixed(2)];
+        return [s.skill, s.auto.toFixed(2), s.jefe.toFixed(2), s.promedio.toFixed(2), (diff >= 0 ? '+' : '') + diff.toFixed(2)];
       }),
       theme: 'striped',
       headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 9 },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { halign: 'center', cellWidth: 25 },
-        2: { halign: 'center', cellWidth: 25 },
+        0: { cellWidth: 50 },
+        1: { halign: 'center', cellWidth: 28 },
+        2: { halign: 'center', cellWidth: 20 },
         3: { halign: 'center', cellWidth: 30 },
+        4: { halign: 'center', cellWidth: 38 },
       },
       margin: { left: margin, right: margin },
       didParseCell: (hookData) => {
-        if (hookData.column.index === 3 && hookData.section === 'body') {
+        if (hookData.column.index === 4 && hookData.section === 'body') {
           const v = parseFloat(hookData.cell.text[0]);
           hookData.cell.styles.textColor = v > 0.3 ? [...AMBER] : v < -0.3 ? [...RED] : [...GREEN];
           hookData.cell.styles.fontStyle = 'bold';
@@ -273,7 +275,7 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   if (brechas.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [['Habilidad', 'Auto', 'Líder', 'Diferencia', 'Indicador']],
+      head: [['Habilidad', 'Autoevaluación', 'Líder', 'Diferencia (Auto vs Líder)', 'Indicador']],
       body: brechas.map(b => {
         const bl = brechaLabel(b.diff);
         return [b.skill, b.auto.toFixed(2), b.jefe.toFixed(2), (b.diff >= 0 ? '+' : '') + b.diff.toFixed(2), bl.text];
@@ -282,11 +284,11 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
       headStyles: { fillColor: [...BLUE], textColor: 255, fontSize: 9 },
       bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { halign: 'center', cellWidth: 20 },
+        0: { cellWidth: 48 },
+        1: { halign: 'center', cellWidth: 28 },
         2: { halign: 'center', cellWidth: 20 },
-        3: { halign: 'center', cellWidth: 25 },
-        4: { cellWidth: 45 },
+        3: { halign: 'center', cellWidth: 35 },
+        4: { cellWidth: 38 },
       },
       margin: { left: margin, right: margin },
       didParseCell: (hookData) => {
@@ -315,17 +317,17 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   y = sectionTitle(doc, 'Fortalezas Destacadas', y, margin, 5);
 
   const fortalezas = allSkills
-    .filter(s => s.jefe > 0)
-    .sort((a, b) => b.jefe - a.jefe)
+    .filter(s => s.promedio > 0)
+    .sort((a, b) => b.promedio - a.promedio)
     .slice(0, 5);
 
   if (fortalezas.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Habilidad', 'Puntaje Líder', 'Categoría']],
+      head: [['#', 'Habilidad', 'Promedio Ponderado', 'Categoría']],
       body: fortalezas.map((s, i) => {
         const isHard = data.radarDataHard.some(h => h.skill === s.skill);
-        return [(i + 1).toString(), s.skill, s.jefe.toFixed(2), isHard ? 'Hard' : 'Soft'];
+        return [(i + 1).toString(), s.skill, s.promedio.toFixed(2), isHard ? 'Hard' : 'Soft'];
       }),
       theme: 'striped',
       headStyles: { fillColor: [...GREEN], textColor: 255, fontSize: 9 },
@@ -352,7 +354,7 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   y = sectionTitle(doc, 'Oportunidades de Mejora', y, margin, 6);
 
   const mejoras = allSkills
-    .filter(s => s.jefe > 0)
+    .filter(s => s.promedio > 0)
     .sort((a, b) => a.promedio - b.promedio)
     .slice(0, 3);
 
@@ -365,7 +367,7 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
 
     autoTable(doc, {
       startY: y,
-      head: [['#', 'Habilidad', 'Puntaje', 'Orientación']],
+      head: [['#', 'Habilidad', 'Promedio Ponderado', 'Orientación']],
       body: mejoras.map((s, i) => [
         (i + 1).toString(),
         s.skill,
@@ -402,28 +404,79 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
     const tendenciaLabel = tendencia === 'mejora' ? '▲ Mejora' : tendencia === 'descenso' ? '▼ Descenso' : '= Estable';
     const tendenciaColor = tendencia === 'mejora' ? GREEN : tendencia === 'descenso' ? RED : GRAY;
 
-    autoTable(doc, {
-      startY: y,
-      head: [['Métrica', 'Valor']],
-      body: [
-        ['Puntaje Q Anterior', promedioAnterior.toFixed(2)],
-        ['Puntaje Q Actual', promedioActual.toFixed(2)],
-        ['Variación', (diff >= 0 ? '+' : '') + diff.toFixed(2)],
-        ['Tendencia', tendenciaLabel],
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [...BLUE], textColor: 255, fontSize: 9 },
-      bodyStyles: { fontSize: 9 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 60 } },
-      margin: { left: margin, right: margin },
-      didParseCell: (hookData) => {
-        if (hookData.row.index === 3 && hookData.column.index === 1 && hookData.section === 'body') {
-          hookData.cell.styles.textColor = [...tendenciaColor];
-          hookData.cell.styles.fontStyle = 'bold';
-        }
-      },
-    });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = checkPageBreak(doc, y, 60);
+
+    // ---- GRÁFICO DE BARRAS VISUAL ----
+    const barLabelWidth = 30;
+    const barStartX = margin + barLabelWidth + 3;
+    const barMaxWidth = W - margin - barStartX - 20;
+    const barHeight = 12;
+    const maxScale = 4;
+
+    // Barra Q Anterior
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Q Anterior', margin, y + 8);
+    doc.setFillColor(220, 220, 220);
+    doc.roundedRect(barStartX, y, barMaxWidth, barHeight, 2, 2, 'F');
+    const barWidthAnt = Math.max(2, (promedioAnterior / maxScale) * barMaxWidth);
+    doc.setFillColor(148, 163, 184);
+    doc.roundedRect(barStartX, y, barWidthAnt, barHeight, 2, 2, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    if (barWidthAnt > 20) {
+      doc.setTextColor(255, 255, 255);
+      doc.text(promedioAnterior.toFixed(2), barStartX + barWidthAnt - 2, y + 8, { align: 'right' });
+    } else {
+      doc.setTextColor(80, 80, 80);
+      doc.text(promedioAnterior.toFixed(2), barStartX + barWidthAnt + 3, y + 8);
+    }
+    y += barHeight + 6;
+
+    // Barra Q Actual
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Q Actual', margin, y + 8);
+    doc.setFillColor(220, 220, 220);
+    doc.roundedRect(barStartX, y, barMaxWidth, barHeight, 2, 2, 'F');
+    const barWidthAct = Math.max(2, (promedioActual / maxScale) * barMaxWidth);
+    const actualBarColor: readonly [number, number, number] = tendencia === 'mejora' ? GREEN : tendencia === 'descenso' ? RED : BLUE;
+    doc.setFillColor(...actualBarColor);
+    doc.roundedRect(barStartX, y, barWidthAct, barHeight, 2, 2, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    if (barWidthAct > 20) {
+      doc.setTextColor(255, 255, 255);
+      doc.text(promedioActual.toFixed(2), barStartX + barWidthAct - 2, y + 8, { align: 'right' });
+    } else {
+      doc.setTextColor(80, 80, 80);
+      doc.text(promedioActual.toFixed(2), barStartX + barWidthAct + 3, y + 8);
+    }
+    y += barHeight + 4;
+
+    // Escala
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.setFont('helvetica', 'normal');
+    for (let i = 0; i <= maxScale; i++) {
+      const xPos = barStartX + (i / maxScale) * barMaxWidth;
+      doc.text(i.toString(), xPos, y + 3, { align: 'center' });
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(xPos, y - barHeight * 2 - 10, xPos, y);
+    }
+    y += 8;
+
+    // Línea resumen de variación
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    const tendColor: readonly [number, number, number] = tendenciaColor;
+    doc.setTextColor(...tendColor);
+    const variacionText = `Variación: ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}  ·  ${tendenciaLabel}`;
+    doc.text(variacionText, W / 2, y, { align: 'center' });
+    y += 12;
   } else {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
@@ -442,18 +495,18 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   const idxAlcanzado = seniorityLevels.indexOf(data.seniorityAlcanzado);
   const brechaSeniority = idxAlcanzado - idxEsperado;
   const brechaTexto = brechaSeniority > 0
-    ? 'Superó el nivel esperado'
+    ? 'Subió de seniority'
     : brechaSeniority === 0
-      ? 'Alcanza el nivel esperado'
-      : `Brecha de ${Math.abs(brechaSeniority)} nivel(es) por debajo`;
-  const brechaColor = brechaSeniority > 0 ? GREEN : brechaSeniority === 0 ? GREEN : RED;
+      ? 'Se mantiene en el mismo seniority'
+      : 'Bajó de seniority';
+  const brechaColor = brechaSeniority > 0 ? GREEN : brechaSeniority === 0 ? BLUE : RED;
 
   autoTable(doc, {
     startY: y,
     head: [['Métrica', 'Valor']],
     body: [
-      ['Seniority Actual (según resultados)', data.seniorityAlcanzado],
-      ['Seniority Objetivo del Rol', data.seniorityEsperado],
+      ['Seniority Alcanzado', data.seniorityAlcanzado],
+      ['Seniority Anterior', data.seniorityEsperado],
       ['Brecha', brechaTexto],
     ],
     theme: 'grid',
@@ -474,7 +527,7 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...GRAY);
   y = checkPageBreak(doc, y, 10);
-  doc.text('Clave para expectativas de crecimiento profesional.', margin, y);
+  doc.text('Comparación entre el seniority alcanzado y el nivel anterior.', margin, y);
   y += 8;
 
   // ================================================================
@@ -485,16 +538,14 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   if (data.comentarios.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [['Fecha', 'Skill', 'Puntaje', 'Comentario']],
-      body: data.comentarios.map(c => [c.fecha, c.skill, c.puntaje.toString(), c.comentario]),
+      head: [['Fuente', 'Comentario']],
+      body: data.comentarios.map(c => [c.tipo, c.comentario]),
       theme: 'striped',
-      headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 9 },
-      bodyStyles: { fontSize: 8 },
+      headStyles: { fillColor: [71, 85, 105], textColor: 255, fontSize: 10 },
+      bodyStyles: { fontSize: 9 },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 35 },
-        2: { halign: 'center', cellWidth: 18 },
-        3: { cellWidth: 'auto' },
+        0: { fontStyle: 'bold', cellWidth: 35 },
+        1: { cellWidth: 'auto' },
       },
       margin: { left: margin, right: margin },
     });

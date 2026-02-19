@@ -82,11 +82,12 @@ export function transformarARadarData(
 
 /**
  * Calcula el seniority alcanzado basado en el promedio general
+ * Bandas: 0-1 Trainee, 1-2 Junior, 2-3 Semi Senior, 3-4 Senior
  */
 export function calcularSeniorityAlcanzado(promedioGeneral: number): Seniority {
-  if (promedioGeneral >= 4.0) return 'Senior';
-  if (promedioGeneral >= 3.0) return 'Semi Senior';
-  if (promedioGeneral >= 2.0) return 'Junior';
+  if (promedioGeneral >= 3.0) return 'Senior';
+  if (promedioGeneral >= 2.0) return 'Semi Senior';
+  if (promedioGeneral >= 1.0) return 'Junior';
   return 'Trainee';
 }
 

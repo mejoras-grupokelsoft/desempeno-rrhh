@@ -169,31 +169,31 @@ describe('transformarARadarData', () => {
 // calcularSeniorityAlcanzado
 // =====================================================================
 describe('calcularSeniorityAlcanzado', () => {
-  it('promedio >= 4.0 → Senior', () => {
-    expect(calcularSeniorityAlcanzado(4.0)).toBe('Senior');
+  it('promedio >= 3.0 → Senior', () => {
+    expect(calcularSeniorityAlcanzado(3.0)).toBe('Senior');
     expect(calcularSeniorityAlcanzado(4.5)).toBe('Senior');
   });
 
-  it('promedio >= 3.0 y < 4.0 → Semi Senior', () => {
-    expect(calcularSeniorityAlcanzado(3.0)).toBe('Semi Senior');
-    expect(calcularSeniorityAlcanzado(3.99)).toBe('Semi Senior');
+  it('promedio >= 2.0 y < 3.0 → Semi Senior', () => {
+    expect(calcularSeniorityAlcanzado(2.0)).toBe('Semi Senior');
+    expect(calcularSeniorityAlcanzado(2.99)).toBe('Semi Senior');
   });
 
-  it('promedio >= 2.0 y < 3.0 → Junior', () => {
-    expect(calcularSeniorityAlcanzado(2.0)).toBe('Junior');
-    expect(calcularSeniorityAlcanzado(2.99)).toBe('Junior');
+  it('promedio >= 1.0 y < 2.0 → Junior', () => {
+    expect(calcularSeniorityAlcanzado(1.0)).toBe('Junior');
+    expect(calcularSeniorityAlcanzado(1.99)).toBe('Junior');
   });
 
-  it('promedio < 2.0 → Trainee', () => {
-    expect(calcularSeniorityAlcanzado(1.99)).toBe('Trainee');
+  it('promedio < 1.0 → Trainee', () => {
+    expect(calcularSeniorityAlcanzado(0.99)).toBe('Trainee');
     expect(calcularSeniorityAlcanzado(0)).toBe('Trainee');
-    expect(calcularSeniorityAlcanzado(1)).toBe('Trainee');
+    expect(calcularSeniorityAlcanzado(0.5)).toBe('Trainee');
   });
 
   it('valores exactos en los límites', () => {
-    expect(calcularSeniorityAlcanzado(2.0)).toBe('Junior');
-    expect(calcularSeniorityAlcanzado(3.0)).toBe('Semi Senior');
-    expect(calcularSeniorityAlcanzado(4.0)).toBe('Senior');
+    expect(calcularSeniorityAlcanzado(1.0)).toBe('Junior');
+    expect(calcularSeniorityAlcanzado(2.0)).toBe('Semi Senior');
+    expect(calcularSeniorityAlcanzado(3.0)).toBe('Senior');
   });
 });
 
