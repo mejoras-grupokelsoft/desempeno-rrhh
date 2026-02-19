@@ -17,13 +17,14 @@ interface CredentialResponse {
 }
 
 export default function Login() {
-  const { users, setCurrentUser, loading, error: apiError } = useApp();
+  const { users, evaluations, setCurrentUser, loading, error: apiError } = useApp();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [devEmail, setDevEmail] = useState<string>('');
   
-  // Mostrar modo desarrollo siempre en localhost
-  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // QA: Modo pruebas habilitado en todos los entornos
+  const isDevelopment = true;
+  const isQA = !(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   // Modo desarrollo bypass
@@ -38,7 +39,23 @@ export default function Login() {
     if (user) {
       setCurrentUser(user);
     } else {
-      setError(`Email "${email}" no encontrado en la base de datos.`);
+      // Modo testeo: si el email tiene evaluaciones, crear usuario temporal
+      const tieneEvals = evaluations.some(e => e.evaluadoEmail.toLowerCase().trim() === email);
+      if (tieneEvals) {
+        const firstEval = evaluations.find(e => e.evaluadoEmail.toLowerCase().trim() === email)!;
+        const nombre = `${firstEval.evaluadoNombre || ''} ${firstEval.evaluadoApellido || ''}`.trim() || email;
+        // Determinar rol según origen de evaluación
+        const esLider = evaluations.some(e => e.evaluadorEmail?.toLowerCase().trim() === email);
+        const rol = esLider ? 'Lider' : 'Analista';
+        setCurrentUser({
+          email,
+          nombre,
+          rol,
+          area: firstEval.area || 'Sin área',
+        });
+      } else {
+        setError(`Email "${email}" no encontrado en la base de datos.`);
+      }
     }
   };
 
@@ -167,15 +184,17 @@ export default function Login() {
 
           {/* Modo Desarrollo (visible en localhost) */}
           {isDevelopment && (
-            <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4">
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <p className="text-sm font-bold text-yellow-900">Modo Desarrollo (Bypass OAuth)</p>
+                <p className="text-sm font-bold text-amber-900">{isQA ? '🧪 Entorno de Pruebas (QA)' : 'Modo Desarrollo (Bypass OAuth)'}</p>
               </div>
-              <p className="text-xs text-yellow-800 mb-3">
-                Para saltear el error de Google OAuth, ingresá tu email registrado:
+              <p className="text-xs text-amber-800 mb-3">
+                {isQA
+                  ? 'Ingresá el email con el que fuiste evaluado/a para acceder al dashboard:'
+                  : 'Para saltear el error de Google OAuth, ingresá tu email registrado:'}
               </p>
               <div className="flex gap-2">
                 <input
@@ -184,17 +203,19 @@ export default function Login() {
                   onChange={(e) => setDevEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleDevLogin()}
                   placeholder="capital.humano@ejemplo.com"
-                  className="flex-1 px-3 py-2 border border-yellow-300 rounded-lg text-sm focus:ring-2 focus:ring-yellow-400 focus:border-transparent outline-none"
+                  className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent outline-none"
                 />
                 <button
                   onClick={handleDevLogin}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-semibold transition"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-semibold transition"
                 >
                   Entrar
                 </button>
               </div>
-              <p className="text-xs text-yellow-700 mt-2">
-                ⚠️ Esto solo funciona en desarrollo. Para usar Google OAuth, configurá los orígenes en Google Cloud Console.
+              <p className="text-xs text-amber-700 mt-2">
+                {isQA
+                  ? '🔒 Este entorno es solo para pruebas internas. Los datos son reales.'
+                  : '⚠️ Esto solo funciona en desarrollo. Para usar Google OAuth, configurá los orígenes en Google Cloud Console.'}
               </p>
             </div>
           )}
