@@ -14,6 +14,15 @@
   # VITE_ENABLE_DEBUG
   # VITE_API_TIMEOUT
 
+# Habilitar branch deploys para la rama QA
+# Esto genera una URL tipo: qa--tu-sitio.netlify.app
+[context.branch-deploy]
+  command = "npm run build"
+
+# Listar ramas que Netlify debe deployar además de main
+[context.qa]
+  command = "npm run build"
+
 # Desactivar escaneo para variables VITE_ que son públicas del frontend
 # Estas variables DEBEN estar en el bundle de JavaScript para que el frontend funcione
 [build.environment]
