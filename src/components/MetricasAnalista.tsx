@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import type { Evaluation, User } from '../types';
-import { calcularSeniorityAlcanzado, transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
+import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { filterByPeriod, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
@@ -128,11 +128,6 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     [promedioAuto, promedioJefe]
   );
 
-  const seniorityAlcanzado = useMemo(() => 
-    calcularSeniorityAlcanzado(promedioFinal),
-    [promedioFinal]
-  );
-
   // Evolución temporal (últimos 6 meses) - Solo mostrar si hay más de un periodo
   const evolucionTemporal = useMemo(() => {
     const meses: { [key: string]: { auto: number[], jefe: number[] } } = {};
@@ -217,15 +212,20 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     return { fortalezas, mejoras };
   }, [radarDataAutoHard, radarDataAutoSoft, radarDataJefeHard, radarDataJefeSoft]);
 
-  // Comentarios del líder
+  // Comentarios del líder (deduplicados — el comentario es de la persona, no de cada skill)
   const comentariosLider = useMemo(() => {
+    const vistos = new Set<string>();
     return evaluacionesPropias
       .filter(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '')
+      .filter(e => {
+        const key = e.comentarios!.trim();
+        if (vistos.has(key)) return false;
+        vistos.add(key);
+        return true;
+      })
       .map(e => ({
         fecha: new Date(e.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
-        skill: e.skillNombre,
         comentario: e.comentarios,
-        puntaje: e.puntaje
       }))
       .slice(0, 5);
   }, [evaluacionesPropias]);
@@ -243,12 +243,6 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-stone-500 mb-1">Seniority Esperado</p>
-                <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                  {seniorityEsperado}
-                </span>
-              </div>
               <button
                 onClick={logout}
                 className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
@@ -380,23 +374,11 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold text-stone-600">Promedio Final</p>
+              <p className="text-sm font-semibold text-stone-600">Promedio Ponderado</p>
             </div>
             <p className="text-3xl font-bold text-green-600">{promedioFinal.toFixed(2)}</p>
           </div>
 
-          {/* Seniority Alcanzado */}
-          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl shadow-sm border border-purple-200 p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-purple-700">Seniority Alcanzado</p>
-            </div>
-            <p className="text-2xl font-bold text-purple-700">{seniorityAlcanzado}</p>
-          </div>
         </div>
 
         {/* Pentágonos con vista expandible */}
@@ -496,8 +478,8 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
           </div>
         )}
 
-        {/* Evolución Temporal */}
-        {evolucionTemporal.length > 0 && (
+        {/* Mi Evolución */}
+        {evaluacionesPropias.length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -505,48 +487,80 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                 </svg>
               </div>
-              Mi Evolución (últimos 6 meses)
+              Mi Evolución
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={evolucionTemporal}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis domain={[0, 5]} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px' }}
-                />
-                <ReferenceLine y={seniorityEsperado === 'Junior' ? 1.0 : seniorityEsperado === 'Semi Senior' ? 2.0 : 3.0} stroke="#7c3aed" strokeDasharray="5 5" strokeWidth={2} label={{ value: `Meta ${seniorityEsperado}`, fill: '#7c3aed', fontSize: 11 }} />
-                <Line type="monotone" dataKey="auto" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Mi Puntuación" />
-                <Line type="monotone" dataKey="jefe" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} name="Evaluación Líder" />
-                <Line type="monotone" dataKey="promedio" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} name="Promedio" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
 
-        {/* Mensaje informativo para primera evaluación */}
-        {evaluacionesPropias.length > 0 && evolucionTemporal.length === 0 && (
-          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border-2 border-purple-200 p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h4 className="text-lg font-bold text-purple-900 mb-2">🎯 ¡Bienvenido a tu primera evaluación!</h4>
-                <p className="text-sm text-purple-800 mb-3">
-                  Este es tu punto de partida en el proceso de evaluación de desempeño. A partir de ahora, podrás seguir 
-                  tu progreso y ver cómo evolucionan tus competencias a lo largo del tiempo.
-                </p>
-                <div className="bg-white/80 rounded-lg p-3 border border-purple-100">
-                  <p className="text-xs text-stone-600">
-                    💡 <strong>Tip:</strong> En tu próxima evaluación (dentro de 6 meses), esta vista mostrará gráficos de evolución 
-                    donde podrás comparar tus resultados actuales con los de hoy. ¡Seguí trabajando en tu desarrollo profesional!
-                  </p>
+            {evolucionTemporal.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={evolucionTemporal}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#64748b' }} />
+                  <YAxis domain={[0, 5]} tick={{ fontSize: 12, fill: '#64748b' }} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px' }}
+                  />
+                  <Line type="monotone" dataKey="auto" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Mi Puntuación" />
+                  <Line type="monotone" dataKey="jefe" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} name="Evaluación Líder" />
+                  <Line type="monotone" dataKey="promedio" stroke="#10b981" strokeWidth={3} dot={{ r: 5 }} name="Promedio Ponderado" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="space-y-6">
+                {/* Banner primera evaluación */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200 p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-blue-900 mb-2">📊 Esta es tu evaluación inicial</h4>
+                      <p className="text-sm text-blue-800 mb-3">
+                        Este es tu punto de partida. En las próximas evaluaciones (cada 6 meses), podrás ver tu evolución y
+                        comparar tus resultados con evaluaciones anteriores.
+                      </p>
+                      <div className="bg-white/80 rounded-lg p-3 border border-blue-100">
+                        <p className="text-xs text-stone-600">
+                          💡 <strong>Próximos pasos:</strong> Revisá tu promedio, las áreas donde destacás y las oportunidades de mejora.
+                          Coordiná con tu líder un plan de acción para alcanzar tus objetivos de desarrollo profesional.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Radar charts (misma vista que el líder) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {radarDataAutoHard.length > 0 && (
+                    <div className="bg-white rounded-xl border border-blue-100 p-4">
+                      <h3 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
+                        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                        </div>
+                        Hard Skills
+                      </h3>
+                      <RadarChart data={radarDataAutoHard} title="" />
+                    </div>
+                  )}
+                  {radarDataAutoSoft.length > 0 && (
+                    <div className="bg-white rounded-xl border border-purple-100 p-4">
+                      <h3 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-2">
+                        <div className="w-5 h-5 bg-purple-100 rounded flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        Soft Skills
+                      </h3>
+                      <RadarChart data={radarDataAutoSoft} title="" />
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -621,15 +635,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
             <div className="space-y-4">
               {comentariosLider.map((com, idx) => (
                 <div key={idx} className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-blue-700">{com.skill}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-stone-500">{com.fecha}</span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">
-                        {com.puntaje}/4
-                      </span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-stone-500 mb-2">{com.fecha}</p>
                   <p className="text-sm text-stone-700 italic">"{com.comentario}"</p>
                 </div>
               ))}
