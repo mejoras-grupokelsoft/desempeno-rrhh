@@ -7,7 +7,7 @@ import {
   calcularSeniorityAlcanzado,
   calcularPromedioGeneral,
   determinarEstado,
-  calcularEvolucionTrimestral,
+  calcularEvolucionSemestral,
 } from '../calculations';
 import {
   crearEval,
@@ -242,64 +242,64 @@ describe('determinarEstado', () => {
 });
 
 // =====================================================================
-// calcularEvolucionTrimestral
+// calcularEvolucionSemestral
 // =====================================================================
-describe('calcularEvolucionTrimestral', () => {
-  it('agrupa evaluaciones por trimestre', () => {
-    const result = calcularEvolucionTrimestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
-    expect(result).toHaveLength(3); // Q1, Q2, Q3
+describe('calcularEvolucionSemestral', () => {
+  it('agrupa evaluaciones por semestre', () => {
+    const result = calcularEvolucionSemestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
+    expect(result).toHaveLength(3); // S1 2024, S2 2024, S1 2025
   });
 
-  it('ordena trimestres cronológicamente', () => {
-    const result = calcularEvolucionTrimestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
-    expect(result[0].trimestre).toContain('Q1');
-    expect(result[1].trimestre).toContain('Q2');
-    expect(result[2].trimestre).toContain('Q3');
+  it('ordena semestres cronológicamente', () => {
+    const result = calcularEvolucionSemestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
+    expect(result[0].semestre).toContain('S1');
+    expect(result[1].semestre).toContain('S2');
+    expect(result[2].semestre).toContain('S1');
   });
 
-  it('aplica fórmula min(avg, jefe) por trimestre', () => {
-    const result = calcularEvolucionTrimestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
+  it('aplica fórmula min(avg, jefe) por semestre', () => {
+    const result = calcularEvolucionSemestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
 
-    // Q1: auto=2, jefe=2 → min(2, 2) = 2
+    // S1 2024: auto=2, jefe=2 → min(2, 2) = 2
     expect(result[0].promedio).toBe(2);
     expect(result[0].auto).toBe(2);
     expect(result[0].jefe).toBe(2);
 
-    // Q2: auto=3, jefe=3 → min(3, 3) = 3
+    // S2 2024: auto=3, jefe=3 → min(3, 3) = 3
     expect(result[1].promedio).toBe(3);
 
-    // Q3: auto=4, jefe=3 → min(3.5, 3) = 3
+    // S1 2025: auto=4, jefe=3 → min(3.5, 3) = 3
     expect(result[2].promedio).toBe(3);
     expect(result[2].auto).toBe(4);
     expect(result[2].jefe).toBe(3);
   });
 
   it('incluye valor esperado constante', () => {
-    const result = calcularEvolucionTrimestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
-    // Todos los trimestres tienen el mismo esperado
+    const result = calcularEvolucionSemestral(evalMultiTrimestre, mockSkillsMatrix, 'Junior', 'IT');
+    // Todos los semestres tienen el mismo esperado
     const esperado = result[0].esperado;
     expect(esperado).toBeGreaterThan(0);
     result.forEach(r => expect(r.esperado).toBe(esperado));
   });
 
   it('retorna vacío sin evaluaciones', () => {
-    expect(calcularEvolucionTrimestral([], mockSkillsMatrix, 'Junior', 'IT')).toEqual([]);
+    expect(calcularEvolucionSemestral([], mockSkillsMatrix, 'Junior', 'IT')).toEqual([]);
   });
 
-  it('maneja trimestre con solo auto', () => {
+  it('maneja semestre con solo auto', () => {
     const soloAuto = [
       crearEval({ fecha: '2025-01-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 4 }),
     ];
-    const result = calcularEvolucionTrimestral(soloAuto, mockSkillsMatrix, 'Junior', 'IT');
+    const result = calcularEvolucionSemestral(soloAuto, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].promedio).toBe(4); // fallback a auto
     expect(result[0].jefe).toBe(0);
   });
 
-  it('maneja trimestre con solo jefe', () => {
+  it('maneja semestre con solo jefe', () => {
     const soloJefe = [
       crearEval({ fecha: '2025-01-15', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 3 }),
     ];
-    const result = calcularEvolucionTrimestral(soloJefe, mockSkillsMatrix, 'Junior', 'IT');
+    const result = calcularEvolucionSemestral(soloJefe, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].promedio).toBe(3); // fallback a jefe
     expect(result[0].auto).toBe(0);
   });

@@ -53,7 +53,7 @@ export interface RadarDataPoint {
 }
 
 export interface EvolucionDataPoint {
-  trimestre: string;
+  semestre: string;
   auto: number;
   jefe: number;
   promedio: number;

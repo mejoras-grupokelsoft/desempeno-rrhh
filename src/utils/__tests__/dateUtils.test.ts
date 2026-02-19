@@ -1,8 +1,8 @@
 // src/utils/__tests__/dateUtils.test.ts
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
-  getQuarter,
-  getPreviousQuarter,
+  getSemester,
+  getPreviousSemester,
   filterByPeriod,
   comparePersonaBetweenPeriods,
   PERIODOS,
@@ -14,54 +14,38 @@ afterEach(() => {
 });
 
 // =====================================================================
-// getQuarter
 // =====================================================================
-describe('getQuarter', () => {
-  it('Enero-Marzo → Q1', () => {
-    expect(getQuarter(new Date(2025, 0, 1))).toBe(1);  // Enero
-    expect(getQuarter(new Date(2025, 1, 15))).toBe(1); // Febrero
-    expect(getQuarter(new Date(2025, 2, 31))).toBe(1); // Marzo
+// getSemester
+// =====================================================================
+describe('getSemester', () => {
+  it('Enero-Junio → S1', () => {
+    expect(getSemester(new Date(2025, 0, 1))).toBe(1);  // Enero
+    expect(getSemester(new Date(2025, 2, 15))).toBe(1); // Marzo
+    expect(getSemester(new Date(2025, 5, 30))).toBe(1); // Junio
   });
 
-  it('Abril-Junio → Q2', () => {
-    expect(getQuarter(new Date(2025, 3, 1))).toBe(2);  // Abril
-    expect(getQuarter(new Date(2025, 5, 30))).toBe(2); // Junio
-  });
-
-  it('Julio-Septiembre → Q3', () => {
-    expect(getQuarter(new Date(2025, 6, 1))).toBe(3);  // Julio
-    expect(getQuarter(new Date(2025, 8, 30))).toBe(3); // Septiembre
-  });
-
-  it('Octubre-Diciembre → Q4', () => {
-    expect(getQuarter(new Date(2025, 9, 1))).toBe(4);   // Octubre
-    expect(getQuarter(new Date(2025, 11, 31))).toBe(4); // Diciembre
+  it('Julio-Diciembre → S2', () => {
+    expect(getSemester(new Date(2025, 6, 1))).toBe(2);   // Julio
+    expect(getSemester(new Date(2025, 11, 31))).toBe(2); // Diciembre
   });
 });
 
 // =====================================================================
-// getPreviousQuarter
+// getPreviousSemester
 // =====================================================================
-describe('getPreviousQuarter', () => {
-  it('en Q2 retorna Q1 del mismo año', () => {
+describe('getPreviousSemester', () => {
+  it('en S2 retorna S1 del mismo año', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2025, 4, 15)); // Mayo = Q2
-    const result = getPreviousQuarter();
-    expect(result).toEqual({ year: 2025, quarter: 1 });
+    vi.setSystemTime(new Date(2025, 6, 15)); // Julio = S2
+    const result = getPreviousSemester();
+    expect(result).toEqual({ year: 2025, semester: 1 });
   });
 
-  it('en Q1 retorna Q4 del año anterior', () => {
+  it('en S1 retorna S2 del año anterior', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2025, 1, 15)); // Febrero = Q1
-    const result = getPreviousQuarter();
-    expect(result).toEqual({ year: 2024, quarter: 4 });
-  });
-
-  it('en Q4 retorna Q3 del mismo año', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2025, 10, 15)); // Noviembre = Q4
-    const result = getPreviousQuarter();
-    expect(result).toEqual({ year: 2025, quarter: 3 });
+    vi.setSystemTime(new Date(2025, 1, 15)); // Febrero = S1
+    const result = getPreviousSemester();
+    expect(result).toEqual({ year: 2024, semester: 2 });
   });
 });
 
@@ -74,10 +58,10 @@ describe('PERIODOS', () => {
     const values = PERIODOS.map(p => p.value);
     expect(values).toContain('HISTORICO');
     expect(values).toContain('ESTE_ANO');
-    expect(values).toContain('Q_ACTUAL');
-    expect(values).toContain('Q_ANTERIOR');
-    expect(values).toContain('ULTIMOS_2Q');
-    expect(values).toContain('ULTIMOS_3Q');
+    expect(values).toContain('S_ACTUAL');
+    expect(values).toContain('S_ANTERIOR');
+    expect(values).toContain('ULTIMOS_2S');
+    expect(values).toContain('ULTIMOS_3S');
   });
 
   it('cada período tiene label', () => {
@@ -115,12 +99,12 @@ describe('filterByPeriod', () => {
   it('filtra vacío si no hay datos en el período', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2030, 6, 1));
-    const result = filterByPeriod(evals, 'Q_ACTUAL');
+    const result = filterByPeriod(evals, 'S_ACTUAL');
     expect(result).toHaveLength(0);
   });
 
   it('maneja array vacío', () => {
-    const result = filterByPeriod([], 'Q_ACTUAL');
+    const result = filterByPeriod([], 'S_ACTUAL');
     expect(result).toEqual([]);
   });
 });
@@ -129,50 +113,50 @@ describe('filterByPeriod', () => {
 // comparePersonaBetweenPeriods — fórmula min(avg, jefe)
 // =====================================================================
 describe('comparePersonaBetweenPeriods', () => {
-  it('retorna estructura con qAnterior y qActual', () => {
+  it('retorna estructura con sAnterior y sActual', () => {
     const result = comparePersonaBetweenPeriods([]);
-    expect(result).toHaveProperty('qAnterior');
-    expect(result).toHaveProperty('qActual');
-    expect(Array.isArray(result.qAnterior)).toBe(true);
-    expect(Array.isArray(result.qActual)).toBe(true);
+    expect(result).toHaveProperty('sAnterior');
+    expect(result).toHaveProperty('sActual');
+    expect(Array.isArray(result.sAnterior)).toBe(true);
+    expect(Array.isArray(result.sActual)).toBe(true);
   });
 
   it('aplica min(avg, jefe) en cada período', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2025, 4, 15)); // Mayo 2025 → Q2
+    vi.setSystemTime(new Date(2025, 6, 15)); // Julio 2025 → S2
 
-    // Q1 (Enero-Marzo): auto=4, jefe=3 → min(3.5, 3) = 3
-    // Q2 (Abril-Junio): auto=2, jefe=4 → min(3, 4) = 3
+    // S1 (Enero-Junio 2025): auto=4, jefe=3 → min(3.5, 3) = 3
+    // S2 (Julio-Diciembre 2025): auto=2, jefe=4 → min(3, 4) = 3
     const evals = [
       crearEval({ fecha: '2025-02-10', tipoEvaluador: 'AUTO', skillNombre: 'JS', puntaje: 4, skillTipo: 'HARD' }),
       crearEval({ fecha: '2025-02-10', tipoEvaluador: 'JEFE', skillNombre: 'JS', puntaje: 3, skillTipo: 'HARD' }),
-      crearEval({ fecha: '2025-05-10', tipoEvaluador: 'AUTO', skillNombre: 'JS', puntaje: 2, skillTipo: 'HARD' }),
-      crearEval({ fecha: '2025-05-10', tipoEvaluador: 'JEFE', skillNombre: 'JS', puntaje: 4, skillTipo: 'HARD' }),
+      crearEval({ fecha: '2025-07-10', tipoEvaluador: 'AUTO', skillNombre: 'JS', puntaje: 2, skillTipo: 'HARD' }),
+      crearEval({ fecha: '2025-07-10', tipoEvaluador: 'JEFE', skillNombre: 'JS', puntaje: 4, skillTipo: 'HARD' }),
     ];
 
     const result = comparePersonaBetweenPeriods(evals);
 
-    // Q anterior (Q1)
-    const jsAnterior = result.qAnterior.find(s => s.skill === 'JS');
+    // S anterior (S1 2025)
+    const jsAnterior = result.sAnterior.find(s => s.skill === 'JS');
     expect(jsAnterior).toBeDefined();
     expect(jsAnterior!.promedio).toBe(3); // min(3.5, 3)
 
-    // Q actual (Q2)
-    const jsActual = result.qActual.find(s => s.skill === 'JS');
+    // S actual (S2 2025)
+    const jsActual = result.sActual.find(s => s.skill === 'JS');
     expect(jsActual).toBeDefined();
     expect(jsActual!.promedio).toBe(3); // min(3, 4)
   });
 
   it('maneja solo auto correctamente', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2025, 4, 15));
+    vi.setSystemTime(new Date(2025, 6, 15)); // Julio 2025 → S2
 
     const evals = [
-      crearEval({ fecha: '2025-05-10', tipoEvaluador: 'AUTO', skillNombre: 'JS', puntaje: 4, skillTipo: 'HARD' }),
+      crearEval({ fecha: '2025-07-10', tipoEvaluador: 'AUTO', skillNombre: 'JS', puntaje: 4, skillTipo: 'HARD' }),
     ];
 
     const result = comparePersonaBetweenPeriods(evals);
-    const js = result.qActual.find(s => s.skill === 'JS');
+    const js = result.sActual.find(s => s.skill === 'JS');
     expect(js).toBeDefined();
     expect(js!.promedio).toBe(4); // fallback a auto
   });

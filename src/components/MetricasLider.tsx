@@ -223,14 +223,14 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const analisisSkills = useMemo(() => {
     if (!miComparacion) return { mejoraron: [], iguales: [], empeoraron: [], nuevas: [] };
     
-    const { qAnterior, qActual } = miComparacion;
+    const { sAnterior, sActual } = miComparacion;
     const mejoraron: string[] = [];
     const iguales: string[] = [];
     const empeoraron: string[] = [];
     const nuevas: string[] = [];
 
-    qActual.forEach(actual => {
-      const anterior = qAnterior.find(s => s.skill === actual.skill);
+    sActual.forEach(actual => {
+      const anterior = sAnterior.find(s => s.skill === actual.skill);
       if (!anterior) {
         nuevas.push(actual.skill);
       } else {
@@ -248,12 +248,12 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const barrasComparacion = useMemo(() => {
     if (!miComparacion) return [];
     
-    const { qAnterior, qActual } = miComparacion;
-    const allSkills = new Set([...qAnterior.map(s => s.skill), ...qActual.map(s => s.skill)]);
+    const { sAnterior, sActual } = miComparacion;
+    const allSkills = new Set([...sAnterior.map(s => s.skill), ...sActual.map(s => s.skill)]);
     
     return Array.from(allSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill);
-      const actual = qActual.find(s => s.skill === skill);
+      const anterior = sAnterior.find(s => s.skill === skill);
+      const actual = sActual.find(s => s.skill === skill);
       
       return {
         skillCompleto: skill,
@@ -267,23 +267,23 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const lineChartData = useMemo(() => {
     if (!miComparacion) return [];
     
-    const { qAnterior, qActual } = miComparacion;
-    const allSkills = new Set([...qAnterior.map(s => s.skill), ...qActual.map(s => s.skill)]);
+    const { sAnterior, sActual } = miComparacion;
+    const allSkills = new Set([...sAnterior.map(s => s.skill), ...sActual.map(s => s.skill)]);
     
     return Array.from(allSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill);
-      const actual = qActual.find(s => s.skill === skill);
+      const anterior = sAnterior.find(s => s.skill === skill);
+      const actual = sActual.find(s => s.skill === skill);
       
       return {
         skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
         skillCompleto: skill,
-        'Q Anterior': anterior?.promedio || 0,
-        'Q Actual': actual?.promedio || 0,
+        'S Anterior': anterior?.promedio || 0,
+        'S Actual': actual?.promedio || 0,
         tipo: anterior?.tipo || actual?.tipo || 'HARD'
       };
     }).sort((a, b) => {
-      const diffA = a['Q Actual'] - a['Q Anterior'];
-      const diffB = b['Q Actual'] - b['Q Anterior'];
+      const diffA = a['S Actual'] - a['S Anterior'];
+      const diffB = b['S Actual'] - b['S Anterior'];
       return diffB - diffA; // Ordenar por mayor mejora
     });
   }, [miComparacion]);
@@ -310,7 +310,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
     const comparison = comparePersonaBetweenPeriods(personEvals);
     if (!comparison) return null;
     
-    const { qAnterior, qActual } = comparison;
+    const { sAnterior, sActual } = comparison;
     
     // Obtener ROL de la persona para saber su seniority esperado
     const personaInfo = resultadosEquipo.find(p => p.email === selectedPersonChart);
@@ -328,34 +328,34 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
     const hardSkills = new Set<string>();
     const softSkills = new Set<string>();
     
-    [...qAnterior, ...qActual].forEach(s => {
+    [...sAnterior, ...sActual].forEach(s => {
       if (s.tipo === 'HARD') hardSkills.add(s.skill);
       else softSkills.add(s.skill);
     });
     
     const hardData = Array.from(hardSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill && s.tipo === 'HARD');
-      const actual = qActual.find(s => s.skill === skill && s.tipo === 'HARD');
+      const anterior = sAnterior.find(s => s.skill === skill && s.tipo === 'HARD');
+      const actual = sActual.find(s => s.skill === skill && s.tipo === 'HARD');
       
       return {
         skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
         skillCompleto: skill,
-        'Q Anterior': anterior?.promedio || 0,
-        'Q Actual': actual?.promedio || 0
+        'S Anterior': anterior?.promedio || 0,
+        'S Actual': actual?.promedio || 0
       };
-    }).sort((a, b) => (b['Q Actual'] - b['Q Anterior']) - (a['Q Actual'] - a['Q Anterior']));
+    }).sort((a, b) => (b['S Actual'] - b['S Anterior']) - (a['S Actual'] - a['S Anterior']));
     
     const softData = Array.from(softSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill && s.tipo === 'SOFT');
-      const actual = qActual.find(s => s.skill === skill && s.tipo === 'SOFT');
+      const anterior = sAnterior.find(s => s.skill === skill && s.tipo === 'SOFT');
+      const actual = sActual.find(s => s.skill === skill && s.tipo === 'SOFT');
       
       return {
         skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
         skillCompleto: skill,
-        'Q Anterior': anterior?.promedio || 0,
-        'Q Actual': actual?.promedio || 0
+        'S Anterior': anterior?.promedio || 0,
+        'S Actual': actual?.promedio || 0
       };
-    }).sort((a, b) => (b['Q Actual'] - b['Q Anterior']) - (a['Q Actual'] - a['Q Anterior']));
+    }).sort((a, b) => (b['S Actual'] - b['S Anterior']) - (a['S Actual'] - a['S Anterior']));
     
     return {
       nombre: personEvals[0].evaluadoNombre,
@@ -588,7 +588,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
               </div>
               <span>Evolución de Competencias</span>
             </h3>
-            <p className="text-xs text-stone-500 mb-6">Comparación entre el trimestre anterior y el actual, separado por tipo de competencia</p>
+            <p className="text-xs text-stone-500 mb-6">Comparación entre el semestre anterior y el actual, separado por tipo de competencia</p>
 
             {/* Hard Skills */}
             {lineChartData.filter(d => d.tipo === 'HARD').length > 0 && (
@@ -633,22 +633,22 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Line 
                       type="monotone" 
-                      dataKey="Q Anterior" 
+                      dataKey="S Anterior" 
                       stroke="#93c5fd"
                       strokeWidth={2}
                       strokeDasharray="5 3"
                       dot={{ fill: '#93c5fd', r: 4, strokeWidth: 0 }}
                       activeDot={{ r: 6 }}
-                      name="Q Anterior (Hard)"
+                      name="S Anterior (Hard)"
                     />
                     <Line 
                       type="monotone" 
-                      dataKey="Q Actual" 
+                      dataKey="S Actual" 
                       stroke="#1e40af" 
                       strokeWidth={3}
                       dot={{ fill: '#1e40af', r: 5, strokeWidth: 0 }}
                       activeDot={{ r: 7 }}
-                      name="Q Actual (Hard)"
+                      name="S Actual (Hard)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -698,22 +698,22 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Line 
                       type="monotone" 
-                      dataKey="Q Anterior" 
+                      dataKey="S Anterior" 
                       stroke="#d8b4fe"
                       strokeWidth={2}
                       strokeDasharray="5 3"
                       dot={{ fill: '#d8b4fe', r: 4, strokeWidth: 0 }}
                       activeDot={{ r: 6 }}
-                      name="Q Anterior (Soft)"
+                      name="S Anterior (Soft)"
                     />
                     <Line 
                       type="monotone" 
-                      dataKey="Q Actual" 
+                      dataKey="S Actual" 
                       stroke="#7c3aed" 
                       strokeWidth={3}
                       dot={{ fill: '#7c3aed', r: 5, strokeWidth: 0 }}
                       activeDot={{ r: 7 }}
-                      name="Q Actual (Soft)"
+                      name="S Actual (Soft)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1327,10 +1327,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             strokeWidth={2}
                             strokeDasharray="4 4"
                           />
-                          <Bar dataKey="Q Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
-                          <Bar dataKey="Q Actual" fill="#3b82f6" radius={[0, 3, 3, 0]}>
+                          <Bar dataKey="S Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="S Actual" fill="#3b82f6" radius={[0, 3, 3, 0]}>
                             {selectedPersonLineData.hardData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry['Q Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#3b82f6'} />
+                              <Cell key={`cell-${index}`} fill={entry['S Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#3b82f6'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1369,10 +1369,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             strokeWidth={2}
                             strokeDasharray="4 4"
                           />
-                          <Bar dataKey="Q Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
-                          <Bar dataKey="Q Actual" fill="#9333ea" radius={[0, 3, 3, 0]}>
+                          <Bar dataKey="S Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="S Actual" fill="#9333ea" radius={[0, 3, 3, 0]}>
                             {selectedPersonLineData.softData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry['Q Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#9333ea'} />
+                              <Cell key={`cell-${index}`} fill={entry['S Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#9333ea'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1385,7 +1385,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                 <div className="flex items-center justify-center gap-6 text-xs bg-stone-50 rounded-lg py-2">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-slate-300 rounded"></div>
-                    <span className="text-stone-600">Q Anterior</span>
+                    <span className="text-stone-600">S Anterior</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-blue-500 rounded"></div>

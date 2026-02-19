@@ -6,7 +6,7 @@ import {
   transformarARadarData,
   calcularPromedioGeneral,
   calcularSeniorityAlcanzado,
-  calcularEvolucionTrimestral,
+  calcularEvolucionSemestral,
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
@@ -262,7 +262,7 @@ export default function Dashboard() {
   );
 
 
-  // Comparación trimestral (Q anterior vs Q actual) solo si hay un evaluado seleccionado
+  // Comparación semestral (S anterior vs S actual) solo si hay un evaluado seleccionado
   const comparacionTrimestral = useMemo(() => {
     if (!selectedEmail) return null;
     
@@ -274,23 +274,23 @@ export default function Dashboard() {
   const barrasComparacion = useMemo(() => {
     if (!comparacionTrimestral) return [];
     
-    const { qAnterior, qActual } = comparacionTrimestral;
+    const { sAnterior, sActual } = comparacionTrimestral;
     
     // Combinar skills de ambos períodos
     const allSkills = new Set([
-      ...qAnterior.map(s => s.skill),
-      ...qActual.map(s => s.skill)
+      ...sAnterior.map(s => s.skill),
+      ...sActual.map(s => s.skill)
     ]);
     
     return Array.from(allSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill);
-      const actual = qActual.find(s => s.skill === skill);
+      const anterior = sAnterior.find(s => s.skill === skill);
+      const actual = sActual.find(s => s.skill === skill);
       
       return {
         skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
         skillCompleto: skill,
-        'Q Anterior': anterior?.promedio || 0,
-        'Q Actual': actual?.promedio || 0,
+        'S Anterior': anterior?.promedio || 0,
+        'S Actual': actual?.promedio || 0,
         tipo: anterior?.tipo || actual?.tipo || 'HARD',
         mejora: (actual?.promedio || 0) - (anterior?.promedio || 0)
       };
@@ -300,11 +300,11 @@ export default function Dashboard() {
   // Datos para el Dumbbell Chart: combina comparación trimestral con esperado directo de skillsMatrix
   const dumbbellData = useMemo((): DumbbellDataPoint[] => {
     if (!comparacionTrimestral || !selectedEmail) return [];
-    const { qAnterior, qActual } = comparacionTrimestral;
+    const { sAnterior, sActual } = comparacionTrimestral;
 
     const allSkills = new Set([
-      ...qAnterior.map(s => s.skill),
-      ...qActual.map(s => s.skill)
+      ...sAnterior.map(s => s.skill),
+      ...sActual.map(s => s.skill)
     ]);
 
     // Obtener area del usuario seleccionado
@@ -312,8 +312,8 @@ export default function Dashboard() {
     const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
 
     return Array.from(allSkills).map(skill => {
-      const anterior = qAnterior.find(s => s.skill === skill);
-      const actual = qActual.find(s => s.skill === skill);
+      const anterior = sAnterior.find(s => s.skill === skill);
+      const actual = sActual.find(s => s.skill === skill);
 
       // Calcular esperado directamente desde skillsMatrix (no depende de filtros)
       const matchSkill = skillsMatrix.find(
@@ -331,12 +331,12 @@ export default function Dashboard() {
     });
   }, [comparacionTrimestral, selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
 
-  // Datos para el gráfico de evolución trimestral (múltiples Q)
+  // Datos para el gráfico de evolución semestral (múltiples S)
   const evolucionData = useMemo(() => {
     if (!selectedEmail) return [];
     const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
     const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
-    return calcularEvolucionTrimestral(evalsPersona, skillsMatrix, seniorityEsperado, area);
+    return calcularEvolucionSemestral(evalsPersona, skillsMatrix, seniorityEsperado, area);
   }, [selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
 
   const handleResetFilters = () => {
@@ -349,13 +349,13 @@ export default function Dashboard() {
   };
 
   // ===== CONSTRUIR DATOS PDF (compartido entre descargar y enviar) =====
-  // SIEMPRE usa Q Actual para los datos del radar, independientemente del filtro elegido en pantalla
+  // SIEMPRE usa S Actual para los datos del radar, independientemente del filtro elegido en pantalla
   const buildPDFData = (): { pdfData: PDFReporteData; nombreArchivo: string; periodoLabel: string } | null => {
     if (!selectedEmail || !mostrarEvaluado) return null;
 
-    // Evaluaciones del Q Actual para el radar (siempre)
+    // Evaluaciones del S Actual para el radar (siempre)
     const allEvalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
-    const evalsQActual = filterByPeriod(allEvalsPersona, 'Q_ACTUAL');
+    const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
     const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
@@ -372,13 +372,13 @@ export default function Dashboard() {
     const liderUser = users.find(u => u.email === liderEmail);
     const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
-    const periodoLabel = 'Q Actual';
+    const periodoLabel = 'S Actual';
 
     let evolucion: PDFReporteData['evolucion'] = undefined;
     const comp = comparePersonaBetweenPeriods(allEvalsPersona);
-    if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
-      const promAnt = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
-      const promAct = comp.qActual.reduce((s, c) => s + c.promedio, 0) / comp.qActual.length;
+    if (comp.sAnterior.length > 0 && comp.sActual.length > 0) {
+      const promAnt = comp.sAnterior.reduce((s, c) => s + c.promedio, 0) / comp.sAnterior.length;
+      const promAct = comp.sActual.reduce((s, c) => s + c.promedio, 0) / comp.sActual.length;
       const diff = promAct - promAnt;
       evolucion = {
         promedioAnterior: promAnt,
@@ -811,11 +811,11 @@ export default function Dashboard() {
               />
             )}
 
-            {/* Evolución Trimestral - Histórico con múltiples Q */}
-            {selectedEmail && (
+            {/* Evolución Semestral - Solo mostrar si hay más de 1 semestre */}
+            {selectedEmail && evolucionData.length > 1 && (
               <EvolucionChart
                 data={evolucionData}
-                title={`Evolución Trimestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
+                title={`Evolución Semestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
               />
             )}
 

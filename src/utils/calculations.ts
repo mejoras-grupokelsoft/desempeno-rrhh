@@ -117,10 +117,10 @@ export function determinarEstado(
 }
 
 /**
- * Calcula la evolución trimestral de una persona para el gráfico de líneas con bandas de seniority.
- * Agrupa evaluaciones por trimestre y calcula auto, jefe, promedio ponderado, y esperado.
+ * Calcula la evolución semestral de una persona para el gráfico de líneas con bandas de seniority.
+ * Agrupa evaluaciones por semestre y calcula auto, jefe, promedio ponderado, y esperado.
  */
-export function calcularEvolucionTrimestral(
+export function calcularEvolucionSemestral(
   evaluations: Evaluation[],
   skillsMatrix: SkillMatrix[],
   seniorityEsperado: string,
@@ -128,19 +128,19 @@ export function calcularEvolucionTrimestral(
 ): EvolucionDataPoint[] {
   if (evaluations.length === 0) return [];
 
-  // Agrupar evaluaciones por trimestre
-  const porTrimestre = new Map<string, Evaluation[]>();
+  // Agrupar evaluaciones por semestre
+  const porSemestre = new Map<string, Evaluation[]>();
 
   evaluations.forEach(e => {
     const date = new Date(e.fecha);
     const year = date.getFullYear();
-    const quarter = Math.floor(date.getMonth() / 3) + 1;
-    const key = `${year}-Q${quarter}`;
+    const semester = Math.floor(date.getMonth() / 6) + 1;
+    const key = `${year}-S${semester}`;
 
-    if (!porTrimestre.has(key)) {
-      porTrimestre.set(key, []);
+    if (!porSemestre.has(key)) {
+      porSemestre.set(key, []);
     }
-    porTrimestre.get(key)!.push(e);
+    porSemestre.get(key)!.push(e);
   });
 
   // Calcular esperado promedio (constante, basado en las skills evaluadas)
@@ -159,10 +159,10 @@ export function calcularEvolucionTrimestral(
   });
   const esperadoPromedio = countEsperado > 0 ? sumEsperado / countEsperado : 0;
 
-  // Procesar cada trimestre
+  // Procesar cada semestre
   const resultado: EvolucionDataPoint[] = [];
 
-  porTrimestre.forEach((evals, key) => {
+  porSemestre.forEach((evals, key) => {
     // Calcular promedios de AUTO y JEFE
     const autoPuntajes = evals.filter(e => e.tipoEvaluador === 'AUTO').map(e => e.puntaje);
     const jefePuntajes = evals.filter(e => e.tipoEvaluador === 'JEFE').map(e => e.puntaje);
@@ -180,12 +180,12 @@ export function calcularEvolucionTrimestral(
       ? Math.min(promedioSimple, jefePromedio)
       : autoPromedio > 0 ? autoPromedio : jefePromedio;
 
-    // Formatear label del trimestre
-    const [year, q] = key.split('-');
-    const trimestre = `${q} ${year}`;
+    // Formatear label del semestre
+    const [year, s] = key.split('-');
+    const semestre = `${s} ${year}`;
 
     resultado.push({
-      trimestre,
+      semestre,
       auto: autoPromedio,
       jefe: jefePromedio,
       promedio,
@@ -196,10 +196,10 @@ export function calcularEvolucionTrimestral(
   // Ordenar cronológicamente
   resultado.sort((a, b) => {
     const parseKey = (t: string) => {
-      const [q, year] = t.split(' ');
-      return parseInt(year) * 10 + parseInt(q.replace('Q', ''));
+      const [s, year] = t.split(' ');
+      return parseInt(year) * 10 + parseInt(s.replace('S', ''));
     };
-    return parseKey(a.trimestre) - parseKey(b.trimestre);
+    return parseKey(a.semestre) - parseKey(b.semestre);
   });
 
   return resultado;

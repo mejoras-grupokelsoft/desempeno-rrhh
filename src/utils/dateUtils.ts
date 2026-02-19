@@ -6,10 +6,10 @@ export { calcularSaltoDeNivel, calcularHardSoftStack, calcularBandasSeniority } 
 export type PeriodoType = 
   | 'HISTORICO'
   | 'ESTE_ANO'
-  | 'Q_ACTUAL'
-  | 'Q_ANTERIOR'
-  | 'ULTIMOS_2Q'
-  | 'ULTIMOS_3Q'
+  | 'S_ACTUAL'
+  | 'S_ANTERIOR'
+  | 'ULTIMOS_2S'
+  | 'ULTIMOS_3S'
   | 'PRIMER_SEMESTRE'
   | 'SEGUNDO_SEMESTRE'
   | 'ULTIMOS_6_MESES'
@@ -23,10 +23,10 @@ export interface PeriodoOption {
 export const PERIODOS: PeriodoOption[] = [
   { value: 'HISTORICO', label: 'Histórico (Todo)' },
   { value: 'ESTE_ANO', label: 'Este Año' },
-  { value: 'Q_ACTUAL', label: 'Q Actual' },
-  { value: 'Q_ANTERIOR', label: 'Q Anterior' },
-  { value: 'ULTIMOS_2Q', label: 'Últimos 2 Trimestres' },
-  { value: 'ULTIMOS_3Q', label: 'Últimos 3 Trimestres' },
+  { value: 'S_ACTUAL', label: 'S Actual' },
+  { value: 'S_ANTERIOR', label: 'S Anterior' },
+  { value: 'ULTIMOS_2S', label: 'Últimos 2 Semestres' },
+  { value: 'ULTIMOS_3S', label: 'Últimos 3 Semestres' },
   { value: 'PRIMER_SEMESTRE', label: 'Primer Semestre (Ene-Jun)' },
   { value: 'SEGUNDO_SEMESTRE', label: 'Segundo Semestre (Jul-Dic)' },
   { value: 'ULTIMOS_6_MESES', label: 'Últimos 6 Meses' },
@@ -34,37 +34,37 @@ export const PERIODOS: PeriodoOption[] = [
 ];
 
 /**
- * Obtiene el quarter (trimestre) de una fecha
- * Q1: Enero-Marzo, Q2: Abril-Junio, Q3: Julio-Septiembre, Q4: Octubre-Diciembre
+ * Obtiene el semestre de una fecha
+ * S1: Enero-Junio, S2: Julio-Diciembre
  */
-export function getQuarter(date: Date): number {
+export function getSemester(date: Date): number {
   const month = date.getMonth(); // 0-11
-  return Math.floor(month / 3) + 1;
+  return Math.floor(month / 6) + 1;
 }
 
 /**
- * Obtiene el quarter anterior al actual
+ * Obtiene el semestre anterior al actual
  */
-export function getPreviousQuarter(): { year: number; quarter: number } {
+export function getPreviousSemester(): { year: number; semester: number } {
   const now = new Date();
-  const currentQuarter = getQuarter(now);
+  const currentSemester = getSemester(now);
   const currentYear = now.getFullYear();
 
-  if (currentQuarter === 1) {
-    return { year: currentYear - 1, quarter: 4 };
+  if (currentSemester === 1) {
+    return { year: currentYear - 1, semester: 2 };
   } else {
-    return { year: currentYear, quarter: currentQuarter - 1 };
+    return { year: currentYear, semester: currentSemester - 1 };
   }
 }
 
 /**
- * Obtiene el rango de fechas del quarter anterior
+ * Obtiene el rango de fechas del semestre anterior
  */
-export function getPreviousQuarterRange(): { start: Date; end: Date } {
-  const { year, quarter } = getPreviousQuarter();
+export function getPreviousSemesterRange(): { start: Date; end: Date } {
+  const { year, semester } = getPreviousSemester();
   
-  const startMonth = (quarter - 1) * 3;
-  const endMonth = startMonth + 2;
+  const startMonth = (semester - 1) * 6;
+  const endMonth = startMonth + 5;
   
   const start = new Date(year, startMonth, 1);
   const end = new Date(year, endMonth + 1, 0, 23, 59, 59); // Último día del mes
@@ -73,15 +73,15 @@ export function getPreviousQuarterRange(): { start: Date; end: Date } {
 }
 
 /**
- * Obtiene el rango de fechas del quarter actual
+ * Obtiene el rango de fechas del semestre actual
  */
-export function getCurrentQuarterRange(): { start: Date; end: Date } {
+export function getCurrentSemesterRange(): { start: Date; end: Date } {
   const now = new Date();
-  const currentQuarter = getQuarter(now);
+  const currentSemester = getSemester(now);
   const year = now.getFullYear();
   
-  const startMonth = (currentQuarter - 1) * 3;
-  const endMonth = startMonth + 2;
+  const startMonth = (currentSemester - 1) * 6;
+  const endMonth = startMonth + 5;
   
   const start = new Date(year, startMonth, 1);
   const end = new Date(year, endMonth + 1, 0, 23, 59, 59);
@@ -90,26 +90,26 @@ export function getCurrentQuarterRange(): { start: Date; end: Date } {
 }
 
 /**
- * Obtiene el rango de fechas de los últimos N trimestres
+ * Obtiene el rango de fechas de los últimos N semestres
  */
-export function getLastNQuartersRange(n: number): { start: Date; end: Date } {
+export function getLastNSemestersRange(n: number): { start: Date; end: Date } {
   const now = new Date();
-  const currentQuarter = getQuarter(now);
+  const currentSemester = getSemester(now);
   const currentYear = now.getFullYear();
   
-  // Calcular el trimestre de inicio
-  let startQuarter = currentQuarter - n + 1;
+  // Calcular el semestre de inicio
+  let startSemester = currentSemester - n + 1;
   let startYear = currentYear;
   
-  while (startQuarter <= 0) {
-    startQuarter += 4;
+  while (startSemester <= 0) {
+    startSemester += 2;
     startYear -= 1;
   }
   
-  const startMonth = (startQuarter - 1) * 3;
+  const startMonth = (startSemester - 1) * 6;
   const start = new Date(startYear, startMonth, 1);
   
-  const endMonth = (currentQuarter - 1) * 3 + 2;
+  const endMonth = (currentSemester - 1) * 6 + 5;
   const end = new Date(currentYear, endMonth + 1, 0, 23, 59, 59);
   
   return { start, end };
@@ -186,17 +186,17 @@ export function filterByPeriod<T extends { fecha: string }>(
     case 'ESTE_ANO':
       range = getCurrentYearRange();
       break;
-    case 'Q_ACTUAL':
-      range = getCurrentQuarterRange();
+    case 'S_ACTUAL':
+      range = getCurrentSemesterRange();
       break;
-    case 'Q_ANTERIOR':
-      range = getPreviousQuarterRange();
+    case 'S_ANTERIOR':
+      range = getPreviousSemesterRange();
       break;
-    case 'ULTIMOS_2Q':
-      range = getLastNQuartersRange(2);
+    case 'ULTIMOS_2S':
+      range = getLastNSemestersRange(2);
       break;
-    case 'ULTIMOS_3Q':
-      range = getLastNQuartersRange(3);
+    case 'ULTIMOS_3S':
+      range = getLastNSemestersRange(3);
       break;
     case 'PRIMER_SEMESTRE':
       range = getFirstSemesterRange();
@@ -309,21 +309,21 @@ export function groupByMonthAndSeniority<T extends { fecha: string; puntaje: num
 }
 
 /**
- * Compara el desempeño de una persona entre dos períodos (Q anterior vs Q actual)
+ * Compara el desempeño de una persona entre dos períodos (S anterior vs S actual)
  */
 export function comparePersonaBetweenPeriods<T extends { fecha: string; skillNombre: string; puntaje: number; tipoEvaluador: string; skillTipo: string }>(
   evaluations: T[]
 ): {
-  qAnterior: { skill: string; tipo: string; auto: number; jefe: number; promedio: number }[];
-  qActual: { skill: string; tipo: string; auto: number; jefe: number; promedio: number }[];
+  sAnterior: { skill: string; tipo: string; auto: number; jefe: number; promedio: number }[];
+  sActual: { skill: string; tipo: string; auto: number; jefe: number; promedio: number }[];
 } {
-  const { start: startAnterior, end: endAnterior } = getPreviousQuarterRange();
+  const { start: startAnterior, end: endAnterior } = getPreviousSemesterRange();
   const now = new Date();
-  const currentQuarter = getQuarter(now);
+  const currentSemester = getSemester(now);
   const currentYear = now.getFullYear();
   
-  const startActual = new Date(currentYear, (currentQuarter - 1) * 3, 1);
-  const endActual = new Date(currentYear, currentQuarter * 3, 0, 23, 59, 59);
+  const startActual = new Date(currentYear, (currentSemester - 1) * 6, 1);
+  const endActual = new Date(currentYear, currentSemester * 6, 0, 23, 59, 59);
   
   const evalsAnterior = evaluations.filter(e => {
     const date = new Date(e.fecha);
@@ -360,8 +360,8 @@ export function comparePersonaBetweenPeriods<T extends { fecha: string; skillNom
   };
   
   return {
-    qAnterior: processPeriod(evalsAnterior),
-    qActual: processPeriod(evalsActual),
+    sAnterior: processPeriod(evalsAnterior),
+    sActual: processPeriod(evalsActual),
   };
 }
 

@@ -94,17 +94,17 @@ export const evalMultiArea: Evaluation[] = [
   crearEval({ evaluadoEmail: 'maria@test.com', evaluadoNombre: 'María', area: 'Ventas', puntaje: 2, tipoEvaluador: 'JEFE' }),
 ];
 
-// Evaluaciones con fechas en distintos trimestres para evolución
+// Evaluaciones con fechas en distintos semestres para evolución
 export const evalMultiTrimestre: Evaluation[] = [
-  // Q1 2025
-  crearEval({ fecha: '2025-01-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 2 }),
-  crearEval({ fecha: '2025-02-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 2 }),
-  // Q2 2025
-  crearEval({ fecha: '2025-04-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 3 }),
-  crearEval({ fecha: '2025-05-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 3 }),
-  // Q3 2025
-  crearEval({ fecha: '2025-07-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 4 }),
-  crearEval({ fecha: '2025-08-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 3 }),
+  // S1 2024 (Enero-Junio)
+  crearEval({ fecha: '2024-02-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 2 }),
+  crearEval({ fecha: '2024-03-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 2 }),
+  // S2 2024 (Julio-Diciembre)
+  crearEval({ fecha: '2024-08-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 3 }),
+  crearEval({ fecha: '2024-09-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 3 }),
+  // S1 2025 (Enero-Junio)
+  crearEval({ fecha: '2025-03-15', tipoEvaluador: 'AUTO', skillNombre: 'JavaScript', puntaje: 4 }),
+  crearEval({ fecha: '2025-04-10', tipoEvaluador: 'JEFE', skillNombre: 'JavaScript', puntaje: 3 }),
 ];
 
 // Reset counter entre tests

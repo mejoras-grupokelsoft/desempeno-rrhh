@@ -84,7 +84,7 @@ const BandLabel = ({ viewBox, label, color }: any) => {
 };
 
 export default function EvolucionChart({ data, title }: EvolucionChartProps) {
-  if (!data || data.length === 0) {
+  if (!data || data.length <= 1) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-8 text-center mb-8">
         {title && <h3 className="text-lg font-bold text-slate-900 mb-4">{title}</h3>}
@@ -94,7 +94,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
           </svg>
         </div>
         <p className="text-stone-500 text-sm font-medium">Sin datos de evoluci\u00f3n</p>
-        <p className="text-stone-400 text-xs mt-1">Se necesitan evaluaciones en distintos trimestres</p>
+        <p className="text-stone-400 text-xs mt-1">Se necesitan evaluaciones en distintos semestres</p>
       </div>
     );
   }
@@ -107,7 +107,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
         </h3>
       )}
       <p className="text-xs text-stone-500 mb-6">
-        Evolucion del desempeno por trimestre con bandas de nivel de seniority
+        Evolucion del desempeno por semestre con bandas de nivel de seniority
       </p>
 
       <ResponsiveContainer width="100%" height={400} minHeight={300}>
@@ -127,7 +127,7 @@ export default function EvolucionChart({ data, title }: EvolucionChartProps) {
           ))}
 
           <XAxis
-            dataKey="trimestre"
+            dataKey="semestre"
             tick={{ fill: '#57534e', fontSize: 12, fontWeight: 600 }}
             tickLine={false}
             axisLine={{ stroke: '#d6d3d1' }}

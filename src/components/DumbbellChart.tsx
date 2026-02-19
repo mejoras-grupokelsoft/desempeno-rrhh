@@ -59,7 +59,7 @@ export default function DumbbellChart({ data, title }: DumbbellChartProps) {
           </svg>
         </div>
         <p className="text-stone-500 text-sm font-medium">Sin datos de brecha para mostrar</p>
-        <p className="text-stone-400 text-xs mt-1">Se necesitan al menos 2 trimestres de evaluaciones</p>
+        <p className="text-stone-400 text-xs mt-1">Se necesitan al menos 2 semestres de evaluaciones</p>
       </div>
     );
   }

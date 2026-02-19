@@ -413,11 +413,11 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
     const barHeight = 12;
     const maxScale = 4;
 
-    // Barra Q Anterior
+    // Barra S Anterior
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
-    doc.text('Q Anterior', margin, y + 8);
+    doc.text('S Anterior', margin, y + 8);
     doc.setFillColor(220, 220, 220);
     doc.roundedRect(barStartX, y, barMaxWidth, barHeight, 2, 2, 'F');
     const barWidthAnt = Math.max(2, (promedioAnterior / maxScale) * barMaxWidth);
@@ -434,11 +434,11 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
     }
     y += barHeight + 6;
 
-    // Barra Q Actual
+    // Barra S Actual
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(100, 100, 100);
-    doc.text('Q Actual', margin, y + 8);
+    doc.text('S Actual', margin, y + 8);
     doc.setFillColor(220, 220, 220);
     doc.roundedRect(barStartX, y, barMaxWidth, barHeight, 2, 2, 'F');
     const barWidthAct = Math.max(2, (promedioActual / maxScale) * barMaxWidth);

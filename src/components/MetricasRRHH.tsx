@@ -436,9 +436,9 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   const handleGenerarPDFIndividual = (enviarEmail: boolean = false) => {
     if (!personaParaPDF) return;
 
-    // SIEMPRE usar Q Actual para el PDF, independientemente del filtro en pantalla
+    // SIEMPRE usar S Actual para el PDF, independientemente del filtro en pantalla
     const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
-    const evalsQActual = filterByPeriod(allEvalsPersona, 'Q_ACTUAL');
+    const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
     
     // Separar por HARD y SOFT
@@ -471,15 +471,15 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     const fechas = evalsPersona.map(e => new Date(e.fecha));
     const fechaMasReciente = new Date(Math.max(...fechas.map(f => f.getTime())));
 
-    // Período evaluado: siempre Q Actual
-    const periodoLabel = 'Q Actual';
+    // Período evaluado: siempre S Actual
+    const periodoLabel = 'S Actual';
 
-    // Evolución (comparar Q anterior vs Q actual)
+    // Evolución (comparar S anterior vs S actual)
     let evolucion: PDFReporteData['evolucion'] = undefined;
     const comp = comparePersonaBetweenPeriods(allEvalsPersona);
-    if (comp.qAnterior.length > 0 && comp.qActual.length > 0) {
-      const promAnterior = comp.qAnterior.reduce((s, c) => s + c.promedio, 0) / comp.qAnterior.length;
-      const promActual = comp.qActual.reduce((s, c) => s + c.promedio, 0) / comp.qActual.length;
+    if (comp.sAnterior.length > 0 && comp.sActual.length > 0) {
+      const promAnterior = comp.sAnterior.reduce((s, c) => s + c.promedio, 0) / comp.sAnterior.length;
+      const promActual = comp.sActual.reduce((s, c) => s + c.promedio, 0) / comp.sActual.length;
       const diff = promActual - promAnterior;
       evolucion = {
         promedioAnterior: promAnterior,
