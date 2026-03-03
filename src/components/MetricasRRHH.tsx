@@ -258,6 +258,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   const [selectedForEmail, setSelectedForEmail] = useState<Set<string>>(new Set());
   const [isSendingBulk, setIsSendingBulk] = useState(false);
   const [bulkEmailStatus, setBulkEmailStatus] = useState<{ sent: number; failed: number; total: number } | null>(null);
+  const [bulkConfirmModal, setBulkConfirmModal] = useState<{ isOpen: boolean; count: number }>({ isOpen: false, count: 0 });
 
   // Estado para drill-down (desglose de skills) - ahora inline
   const [drillDownPersona, setDrillDownPersona] = useState<{
@@ -507,6 +508,21 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   };
 
   // Handler envío masivo de emails
+  const handleInitiateBulkSendEmails = () => {
+    if (selectedForEmail.size === 0) return;
+    if (selectedForEmail.size > 50) {
+      alert('⚠️ Máximo 50 personas por envío. Por favor selecciona menos personas.');
+      return;
+    }
+    // Mostrar modal de confirmación si hay más de 5 personas
+    if (selectedForEmail.size > 5) {
+      setBulkConfirmModal({ isOpen: true, count: selectedForEmail.size });
+    } else {
+      // Si son 5 o menos, enviar directamente sin confirmar
+      handleBulkSendEmails();
+    }
+  };
+
   const handleBulkSendEmails = async () => {
     if (selectedForEmail.size === 0) return;
     setIsSendingBulk(true);
@@ -1372,7 +1388,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
             {/* Envío masivo */}
             {selectedForEmail.size > 0 && (
               <button
-                onClick={handleBulkSendEmails}
+                onClick={handleInitiateBulkSendEmails}
                 disabled={isSendingBulk}
                 className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition font-semibold text-sm shadow-sm hover:shadow-md"
               >
@@ -1642,6 +1658,55 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                     Descargar + Enviar Email
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para envío masivo */}
+      {bulkConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            {/* Header */}
+            <div className="flex items-start gap-3 mb-6">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4v2m0 4v2m0-14v2m0-4v2m0 4v2M7.08 6.06L5.648 4.617m1.414 1.414l1.414 1.414m-1.414-1.414L5.648 7.505m1.414-1.414l1.414-1.414M17.92 6.06l1.414-1.413m-1.414 1.414l1.414 1.414m-1.414-1.414l-1.414-1.414m1.414 1.414l-1.414 1.414" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Confirmar envío masivo</h3>
+                <p className="text-sm text-stone-600 mt-1">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+
+            {/* Contenido */}
+            <div className="bg-amber-50 rounded-lg p-4 mb-6 border border-amber-200">
+              <p className="text-sm text-amber-900">
+                Vas a enviar <strong className="text-lg">{bulkConfirmModal.count}</strong> email{bulkConfirmModal.count !== 1 ? 's' : ''} con evaluaciones finales y PDF adjuntos.
+              </p>
+              <p className="text-xs text-amber-700 mt-2">
+                ⏱️ El proceso puede tomar algunos minutos. No cierres esta página mientras se envían.
+              </p>
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBulkConfirmModal({ isOpen: false, count: 0 })}
+                className="flex-1 px-4 py-3 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setBulkConfirmModal({ isOpen: false, count: 0 });
+                  handleBulkSendEmails();
+                }}
+                className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg font-semibold text-sm hover:bg-orange-600 transition"
+              >
+                Confirmar envío
               </button>
             </div>
           </div>
