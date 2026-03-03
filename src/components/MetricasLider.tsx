@@ -4,12 +4,15 @@ import { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, Ca
 import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado } from '../utils/calculations';
 import { getUniqueEvaluados } from '../utils/filters';
-import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
+import { filterByPeriod, comparePersonaBetweenPeriods, type PeriodoType } from '../utils/dateUtils';
 import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
 import { logger } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
 import type { Seniority } from '../types';
+import PageHeader from './shared/PageHeader';
+import PeriodFilter from './shared/PeriodFilter';
+import Pagination from './shared/Pagination';
 
 // Función para normalizar texto (sin acentos, minúsculas)
 const normalizeText = (text: string): string => {
@@ -381,30 +384,11 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
-      {/* Header */}
-      <div className="bg-white border-b border-stone-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Mi Equipo</h1>
-              <p className="text-stone-600">
-                {currentUser.nombre} • {currentUser.rol} • {currentUser.area}
-              </p>
-            </div>
-            <button
-              onClick={logout}
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Cerrar Sesión
-              </span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Mi Equipo"
+        currentUser={currentUser}
+        onLogout={logout}
+      />
 
       <div className="p-6 max-w-[1600px] mx-auto">
       {/* Botones de Navegación */}
@@ -1003,68 +987,17 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-stone-800 mb-3">
-                      Filtro Temporal
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <button
-                        onClick={() => setFiltroModo('periodo')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                          filtroModo === 'periodo'
-                            ? 'bg-orange-600 text-white shadow-md'
-                            : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
-                        }`}
-                      >
-                        📅 Periodos
-                      </button>
-                      <button
-                        onClick={() => setFiltroModo('rango')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                          filtroModo === 'rango'
-                            ? 'bg-orange-600 text-white shadow-md'
-                            : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
-                        }`}
-                      >
-                        🗓️ Rango
-                      </button>
-                    </div>
-
-                    {filtroModo === 'periodo' ? (
-                      <select
-                        value={selectedPeriodo}
-                        onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
-                        className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-                      >
-                        {PERIODOS.map((periodo) => (
-                          <option key={periodo.value} value={periodo.value}>
-                            {periodo.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <input
-                            type="date"
-                            value={fechaInicio}
-                            onChange={(e) => setFechaInicio(e.target.value)}
-                            max={fechaFin || undefined}
-                            placeholder="Desde"
-                            className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition text-sm"
-                          />
-                        </div>
-                        <div>
-                          <input
-                            type="date"
-                            value={fechaFin}
-                            onChange={(e) => setFechaFin(e.target.value)}
-                            min={fechaInicio || undefined}
-                            placeholder="Hasta"
-                            className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition text-sm"
-                          />
-                        </div>
-                      </div>
-                    )}
+                    <PeriodFilter
+                      filtroModo={filtroModo}
+                      setFiltroModo={setFiltroModo}
+                      selectedPeriodo={selectedPeriodo}
+                      setSelectedPeriodo={setSelectedPeriodo}
+                      fechaInicio={fechaInicio}
+                      setFechaInicio={setFechaInicio}
+                      fechaFin={fechaFin}
+                      setFechaFin={setFechaFin}
+                      accentColor="purple"
+                    />
                   </div>
 
                   <div className="relative" ref={dropdownRef}>
@@ -1480,45 +1413,14 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
             </tbody>
           </table>
           
-          {/* Controles de paginación */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-4 border-t border-stone-200">
-              <div className="text-sm text-stone-600">
-                Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, resultadosEquipo.length)} de {resultadosEquipo.length} resultados
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-2 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                >
-                  Anterior
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-10 h-10 rounded-lg font-semibold text-sm transition ${
-                        currentPage === page
-                          ? 'bg-purple-500 text-white'
-                          : 'border border-stone-200 text-stone-700 hover:bg-stone-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-2 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={resultadosEquipo.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            accentColor="purple"
+          />
             </>
           ) : (
             <div className="bg-amber-50 rounded-2xl border border-amber-200 p-8 text-center">

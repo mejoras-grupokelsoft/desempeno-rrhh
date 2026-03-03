@@ -27,19 +27,78 @@ export function pdfToBase64(doc: jsPDF): string {
   return base64;
 }
 
+export interface ResultadoEvaluacion {
+  promedioAuto: number;
+  promedioJefe: number;
+  promedioFinal: number;
+  seniorityAlcanzado: string;
+  area?: string;
+  rol?: string;
+}
+
 /**
- * Genera el cuerpo HTML del email con estilo profesional
+ * Genera el cuerpo HTML del email con los resultados finales de la evaluación
  */
 export function generarCuerpoEmail(
   evaluadoNombre: string,
   _periodo: string,
-  comentarioRRHH?: string
+  comentarioRRHH?: string,
+  resultado?: ResultadoEvaluacion
 ): string {
+  const seniorityColor = (s: string) => {
+    if (s === 'Senior') return '#d97706';
+    if (s === 'Semi Senior') return '#475569';
+    if (s === 'Junior') return '#0369a1';
+    return '#6b7280';
+  };
+
+  const resultadoHTML = resultado
+    ? `
+        <!-- Resumen de resultados -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin: 0 0 24px;">
+          <p style="color: #1e293b; font-size: 14px; font-weight: 700; margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Resumen de tu Evaluación Final
+          </p>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 12px; background: white; border-radius: 8px; margin-bottom: 6px; width: 33%;">
+                <p style="color: #64748b; font-size: 11px; font-weight: 600; margin: 0 0 4px; text-transform: uppercase;">Autoevaluación</p>
+                <p style="color: #3b82f6; font-size: 22px; font-weight: 800; margin: 0;">${resultado.promedioAuto.toFixed(2)}<span style="font-size: 12px; color: #94a3b8;"> / 4.0</span></p>
+              </td>
+              <td style="padding: 1px 6px; width: 4%; text-align: center; color: #94a3b8; font-size: 18px;">+</td>
+              <td style="padding: 8px 12px; background: white; border-radius: 8px; width: 33%;">
+                <p style="color: #64748b; font-size: 11px; font-weight: 600; margin: 0 0 4px; text-transform: uppercase;">Evaluación Líder</p>
+                <p style="color: #f97316; font-size: 22px; font-weight: 800; margin: 0;">${resultado.promedioJefe.toFixed(2)}<span style="font-size: 12px; color: #94a3b8;"> / 4.0</span></p>
+              </td>
+              <td style="padding: 1px 6px; width: 4%; text-align: center; color: #94a3b8; font-size: 18px;">=</td>
+              <td style="padding: 8px 12px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 8px; border: 1px solid #bbf7d0; width: 26%;">
+                <p style="color: #14532d; font-size: 11px; font-weight: 600; margin: 0 0 4px; text-transform: uppercase;">Promedio Final</p>
+                <p style="color: #16a34a; font-size: 22px; font-weight: 800; margin: 0;">${resultado.promedioFinal.toFixed(2)}<span style="font-size: 12px; color: #86efac;"> / 4.0</span></p>
+              </td>
+            </tr>
+          </table>
+          <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+            <span style="font-size: 13px; color: #475569;">Seniority alcanzado:</span>
+            <span style="
+              display: inline-block;
+              margin-left: 8px;
+              padding: 3px 12px;
+              border-radius: 9999px;
+              background: ${seniorityColor(resultado.seniorityAlcanzado)}22;
+              color: ${seniorityColor(resultado.seniorityAlcanzado)};
+              font-size: 13px;
+              font-weight: 700;
+              border: 1px solid ${seniorityColor(resultado.seniorityAlcanzado)}44;
+            ">${resultado.seniorityAlcanzado}</span>
+          </div>
+        </div>`
+    : '';
+
   return `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 24px 32px; border-radius: 12px 12px 0 0;">
+      <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 24px 32px; border-radius: 12px 12px 0 0;">
         <h1 style="color: white; margin: 0; font-size: 20px; font-weight: 700;">
-          Evaluación de Desempeño
+          Resultados de tu Evaluación de Desempeño
         </h1>
         <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">
           Grupo Kelsoft · Equipo de Capital Humano
@@ -51,25 +110,25 @@ export function generarCuerpoEmail(
           Hola <strong>${evaluadoNombre}</strong>,
         </p>
         <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
-          Gracias por completar tu autoevaluación de desempeño.
+          El proceso de evaluación de desempeño ha concluido. Tanto tu autoevaluación como la evaluación por parte de tu líder ya fueron procesadas, y podemos compartirte los resultados finales.
+        </p>
+
+        ${resultadoHTML}
+
+        <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
+          Adjunto a este email encontrarás tu <strong>Reporte PDF</strong> completo con el detalle de todas tus competencias (habilidades técnicas y conductuales), los comparativos con el nivel esperado para tu rol y el análisis de evolución respecto al período anterior.
         </p>
         <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
-          Este es un paso clave dentro del proceso y valoramos el tiempo y la reflexión que le dedicaste.
-        </p>
-        <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
-          El próximo paso será la evaluación por parte de tu líder, quien analizará tu desempeño considerando tanto los aspectos técnicos como los comportamentales del rol.
-        </p>
-        <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 16px;">
-          Una vez finalizada esa instancia, se coordinará una reunión de feedback entre vos y tu líder. En ese espacio se compartirán los resultados de la evaluación, se conversarán fortalezas y oportunidades de mejora, y se trabajará de manera conjunta en el camino de desarrollo y profesionalización para el próximo período.
+          El próximo paso será una <strong>reunión de feedback 1:1 con tu líder</strong>, en la que se conversarán los resultados en detalle, se reconocerán tus fortalezas y se trabajará juntos en las oportunidades de desarrollo para el siguiente período.
         </p>
         <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
-          Nuestro objetivo es que este proceso sea una herramienta de crecimiento, aprendizaje y alineación de expectativas.
+          Valoramos tu participación y el esfuerzo que dedicaste a este proceso. Nuestro objetivo es que sea una herramienta de crecimiento real y alineación de expectativas mutuas.
         </p>
         
         ${comentarioRRHH ? `
-        <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 0 0 24px;">
-          <p style="color: #1e40af; font-size: 13px; font-weight: 600; margin: 0 0 8px;">
-            Observaciones adicionales:
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 0 0 24px;">
+          <p style="color: #92400e; font-size: 13px; font-weight: 600; margin: 0 0 8px;">
+            📝 Observaciones de Capital Humano:
           </p>
           <p style="color: #374151; font-size: 14px; line-height: 1.5; margin: 0;">
             ${comentarioRRHH}
@@ -78,7 +137,7 @@ export function generarCuerpoEmail(
         ` : ''}
         
         <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 8px;">
-          Gracias nuevamente por tu participación.
+          Muchas gracias y felicitaciones por el proceso completado.
         </p>
         <p style="color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 4px;">
           Saludos,

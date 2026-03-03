@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import type { Evaluation, User } from '../types';
 import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
-import { filterByPeriod, PERIODOS, type PeriodoType } from '../utils/dateUtils';
+import { filterByPeriod, type PeriodoType } from '../utils/dateUtils';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
 import type { Seniority } from '../types';
+import PageHeader from './shared/PageHeader';
+import PeriodFilter from './shared/PeriodFilter';
 
 interface MetricasAnalistaProps {
   evaluations: Evaluation[];
@@ -233,109 +235,50 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
       {/* Header */}
-      <div className="bg-white border-b border-stone-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Mi Desempeño</h1>
-              <p className="text-stone-600">
-                {currentUser.nombre} • {currentUser.rol} • {selectedArea || currentUser.area}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={logout}
-                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
-              >
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Cerrar Sesión
-                </span>
-              </button>
+      <PageHeader
+        title="Mi Desempeño"
+        subtitle={`${currentUser.nombre} • ${currentUser.rol} • ${selectedArea || currentUser.area}`}
+        currentUser={currentUser}
+        onLogout={logout}
+      >
+        {/* Carrusel de áreas */}
+        {areasDelAnalista.length > 1 && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-sm font-semibold text-stone-700">Área:</span>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {areasDelAnalista.map(area => (
+                <button
+                  key={area}
+                  onClick={() => setSelectedArea(area)}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
+                    selectedArea === area
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+                  }`}
+                >
+                  {area}
+                </button>
+              ))}
             </div>
           </div>
+        )}
 
-          {/* Carrusel de áreas */}
-          {areasDelAnalista.length > 1 && (
-            <div className="mt-4 flex items-center gap-2">
-              <span className="text-sm font-semibold text-stone-700">Área:</span>
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {areasDelAnalista.map(area => (
-                  <button
-                    key={area}
-                    onClick={() => setSelectedArea(area)}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-                      selectedArea === area
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
-                    }`}
-                  >
-                    {area}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Selector de Período */}
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-stone-700">📅 Período:</span>
-            <div className="flex gap-1 bg-stone-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setFiltroModo('periodo')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                  filtroModo === 'periodo'
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                }`}
-              >
-                📅 Períodos
-              </button>
-              <button
-                onClick={() => setFiltroModo('rango')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
-                  filtroModo === 'rango'
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
-                }`}
-              >
-                📆 Rango
-              </button>
-            </div>
-            {filtroModo === 'periodo' ? (
-              <select
-                value={selectedPeriodo}
-                onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
-                className="px-4 py-2 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white transition text-sm"
-              >
-                {PERIODOS.map((periodo) => (
-                  <option key={periodo.value} value={periodo.value}>
-                    {periodo.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  className="px-3 py-2 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-                />
-                <span className="text-stone-400 text-sm">a</span>
-                <input
-                  type="date"
-                  value={fechaFin}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  className="px-3 py-2 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
-                />
-              </div>
-            )}
-          </div>
+        {/* Selector de Período */}
+        <div className="mt-4">
+          <PeriodFilter
+            filtroModo={filtroModo}
+            setFiltroModo={setFiltroModo}
+            selectedPeriodo={selectedPeriodo}
+            setSelectedPeriodo={setSelectedPeriodo}
+            fechaInicio={fechaInicio}
+            setFechaInicio={setFechaInicio}
+            fechaFin={fechaFin}
+            setFechaFin={setFechaFin}
+            accentColor="blue"
+            compact
+          />
         </div>
-      </div>
+      </PageHeader>
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Cards principales */}

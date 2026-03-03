@@ -10,6 +10,9 @@ import { SkillBreakdownInline } from './SkillBreakdown';
 import type { Seniority } from '../types';
 import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from '../utils/pdfGenerator';
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
+import { generarCuerpoEmail, enviarEmailConPDF, pdfToBase64, type ResultadoEvaluacion } from '../utils/emailService';
+import PeriodFilter from './shared/PeriodFilter';
+import Pagination from './shared/Pagination';
 
 // Función para normalizar texto (sin acentos, minúsculas)
 const normalizeText = (text: string): string => {
@@ -251,6 +254,11 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   const [selectedAreaLider, setSelectedAreaLider] = useState<string>('');
   const [filtrosCollapsed, setFiltrosCollapsed] = useState<boolean>(false);
 
+  // Estado para email masivo
+  const [selectedForEmail, setSelectedForEmail] = useState<Set<string>>(new Set());
+  const [isSendingBulk, setIsSendingBulk] = useState(false);
+  const [bulkEmailStatus, setBulkEmailStatus] = useState<{ sent: number; failed: number; total: number } | null>(null);
+
   // Estado para drill-down (desglose de skills) - ahora inline
   const [drillDownPersona, setDrillDownPersona] = useState<{
     email: string;
@@ -425,56 +433,38 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     };
   }, [evaluations, resultadosPorPersona]);
 
+  // Estado de envío individual
+  const [isSendingIndividual, setIsSendingIndividual] = useState(false);
+  const [individualEmailResult, setIndividualEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
   // Función para abrir modal PDF con datos de persona
   const handleAbrirModalPDF = (persona: any) => {
     setPersonaParaPDF(persona);
     setComentarioRRHH('');
+    setIndividualEmailResult(null);
     setModalPDFAbierto(true);
   };
 
-  // Función para generar PDF individual
-  const handleGenerarPDFIndividual = (enviarEmail: boolean = false) => {
-    if (!personaParaPDF) return;
-
-    // SIEMPRE usar S Actual para el PDF, independientemente del filtro en pantalla
-    const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === personaParaPDF.email);
+  // Helper: construir PDF data para una persona
+  const buildPDFData = (persona: any): { pdf: ReturnType<typeof generarPDFIndividual>; nombreArchivo: string } => {
+    const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === persona.email);
     const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
-    
-    // Separar por HARD y SOFT
+
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
     const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
 
-    // Preparar datos del radar por dimensión
-    const radarDataHard = transformarARadarData(
-      evalsHard,
-      [],
-      personaParaPDF.seniorityAlcanzado,
-      personaParaPDF.rol,
-      personaParaPDF.area
-    );
-    const radarDataSoft = transformarARadarData(
-      evalsSoft,
-      [],
-      personaParaPDF.seniorityAlcanzado,
-      personaParaPDF.rol,
-      personaParaPDF.area
-    );
+    const radarDataHard = transformarARadarData(evalsHard, [], persona.seniorityAlcanzado, persona.rol, persona.area);
+    const radarDataSoft = transformarARadarData(evalsSoft, [], persona.seniorityAlcanzado, persona.rol, persona.area);
 
-    // Obtener nombre del líder evaluador
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
     const liderUser = users.find(u => u.email === liderEmail);
     const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
-    // Fecha de evaluación más reciente
     const fechas = evalsPersona.map(e => new Date(e.fecha));
-    const fechaMasReciente = new Date(Math.max(...fechas.map(f => f.getTime())));
+    const fechaMasReciente = evalsPersona.length > 0 ? new Date(Math.max(...fechas.map(f => f.getTime()))) : new Date();
 
-    // Período evaluado: siempre S Actual
-    const periodoLabel = 'S Actual';
-
-    // Evolución (comparar S anterior vs S actual)
     let evolucion: PDFReporteData['evolucion'] = undefined;
     const comp = comparePersonaBetweenPeriods(allEvalsPersona);
     if (comp.sAnterior.length > 0 && comp.sActual.length > 0) {
@@ -488,43 +478,126 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       };
     }
 
-    // Comentarios (1 de autoevaluación + 1 del líder)
     const comentarios: PDFReporteData['comentarios'] = [];
-    const comentarioAuto = evalsPersona.find(e => e.tipoEvaluador === 'AUTO' && e.comentarios && e.comentarios.trim() !== '');
-    if (comentarioAuto) {
-      comentarios.push({ tipo: 'Autoevaluación', comentario: comentarioAuto.comentarios! });
-    }
-    const comentarioJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE' && e.comentarios && e.comentarios.trim() !== '');
-    if (comentarioJefe) {
-      comentarios.push({ tipo: 'Líder', comentario: comentarioJefe.comentarios! });
-    }
+    const comentarioAuto = evalsPersona.find(e => e.tipoEvaluador === 'AUTO' && e.comentarios?.trim());
+    if (comentarioAuto) comentarios.push({ tipo: 'Autoevaluación', comentario: comentarioAuto.comentarios! });
+    const comentarioJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE' && e.comentarios?.trim());
+    if (comentarioJefe) comentarios.push({ tipo: 'Líder', comentario: comentarioJefe.comentarios! });
 
     const pdfData: PDFReporteData = {
-      evaluadoNombre: personaParaPDF.nombre,
-      evaluadoEmail: personaParaPDF.email,
-      rol: personaParaPDF.rol,
-      area: personaParaPDF.area,
-      periodoEvaluado: periodoLabel,
+      evaluadoNombre: persona.nombre,
+      evaluadoEmail: persona.email,
+      rol: persona.rol,
+      area: persona.area,
+      periodoEvaluado: 'S Actual',
       liderEvaluadorNombre: liderNombre,
-      promedioGeneral: personaParaPDF.promedioFinal,
-      seniorityAlcanzado: personaParaPDF.seniorityAlcanzado,
+      promedioGeneral: persona.promedioFinal,
+      seniorityAlcanzado: persona.seniorityAlcanzado,
       radarDataHard,
       radarDataSoft,
       evolucion,
-      seniorityEsperado: personaParaPDF.seniorityEsperado || 'N/D',
+      seniorityEsperado: persona.seniorityEsperado || 'N/D',
       comentarios,
       comentarioRRHH: comentarioRRHH.trim() || undefined,
     };
 
     const pdf = generarPDFIndividual(pdfData);
-    
-    // Descargar el PDF
-    const nombreArchivo = `Evaluacion_${personaParaPDF.nombre.replace(/\s+/g, '_')}_${fechaMasReciente.getFullYear()}.pdf`;
+    const nombreArchivo = `Evaluacion_${persona.nombre.replace(/\s+/g, '_')}_${fechaMasReciente.getFullYear()}.pdf`;
+    return { pdf, nombreArchivo };
+  };
+
+  // Handler envío masivo de emails
+  const handleBulkSendEmails = async () => {
+    if (selectedForEmail.size === 0) return;
+    setIsSendingBulk(true);
+    setBulkEmailStatus(null);
+
+    const personasSeleccionadas = filteredResultados.filter(p => selectedForEmail.has(p.email));
+    let sent = 0;
+    let failed = 0;
+
+    for (const persona of personasSeleccionadas) {
+      try {
+        const { pdf, nombreArchivo } = buildPDFData(persona);
+        const resultado: ResultadoEvaluacion = {
+          promedioAuto: persona.promedioAuto,
+          promedioJefe: persona.promedioJefe,
+          promedioFinal: persona.promedioFinal,
+          seniorityAlcanzado: persona.seniorityAlcanzado,
+          area: persona.area,
+          rol: persona.rol,
+        };
+        const cuerpo = generarCuerpoEmail(persona.nombre, 'S Actual', undefined, resultado);
+        const pdfBase64 = pdfToBase64(pdf);
+
+        const res = await enviarEmailConPDF({
+          destinatarios: [persona.email],
+          asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
+          cuerpoHTML: cuerpo,
+          pdfBase64,
+          nombreArchivo,
+        });
+
+        if (res.success) {
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setIsSendingBulk(false);
+    setBulkEmailStatus({ sent, failed, total: personasSeleccionadas.length });
+    setSelectedForEmail(new Set());
+  };
+
+  // Función para generar PDF individual
+  const handleGenerarPDFIndividual = async (doSendEmail: boolean = false) => {
+    if (!personaParaPDF) return;
+
+    setIndividualEmailResult(null);
+    const { pdf, nombreArchivo } = buildPDFData(personaParaPDF);
+
+    // Siempre descargar el PDF
     pdf.save(nombreArchivo);
 
-    // Si se seleccionó enviar por email, mostrar mensaje
-    if (enviarEmail) {
-      alert(`✅ PDF generado: ${nombreArchivo}\n\nPara enviar por email:\n1. El PDF se descargó en tu computadora\n2. Adjúntalo manualmente a un email desde tu cliente de correo\n3. Destinatario: ${personaParaPDF.email}`);
+    if (doSendEmail) {
+      setIsSendingIndividual(true);
+      try {
+        const resultado: ResultadoEvaluacion = {
+          promedioAuto: personaParaPDF.promedioAuto,
+          promedioJefe: personaParaPDF.promedioJefe,
+          promedioFinal: personaParaPDF.promedioFinal,
+          seniorityAlcanzado: personaParaPDF.seniorityAlcanzado,
+          area: personaParaPDF.area,
+          rol: personaParaPDF.rol,
+        };
+        const cuerpo = generarCuerpoEmail(
+          personaParaPDF.nombre,
+          'S Actual',
+          comentarioRRHH.trim() || undefined,
+          resultado,
+        );
+        const pdfBase64 = pdfToBase64(pdf);
+
+        const res = await enviarEmailConPDF({
+          destinatarios: [personaParaPDF.email],
+          asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
+          cuerpoHTML: cuerpo,
+          pdfBase64,
+          nombreArchivo,
+        });
+
+        setIndividualEmailResult({ ok: res.success, msg: res.message });
+      } catch (err) {
+        setIndividualEmailResult({ ok: false, msg: err instanceof Error ? err.message : 'Error al enviar' });
+      } finally {
+        setIsSendingIndividual(false);
+      }
+      // No cerrar modal para que el usuario vea el resultado
+      return;
     }
 
     // Cerrar modal
@@ -580,74 +653,17 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           {!filtrosCollapsed && (
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="col-span-full">
-              <label className="block text-sm font-semibold text-stone-800 mb-3">
-                Filtro Temporal
-              </label>
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  onClick={() => setFiltroModo('periodo')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                    filtroModo === 'periodo'
-                      ? 'bg-orange-600 text-white shadow-md'
-                      : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
-                  }`}
-                >
-                  📅 Periodos Predefinidos
-                </button>
-                <button
-                  onClick={() => setFiltroModo('rango')}
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                    filtroModo === 'rango'
-                      ? 'bg-orange-600 text-white shadow-md'
-                      : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-300'
-                  }`}
-                >
-                  🗓️ Rango Personalizado
-                </button>
-              </div>
-
-              {filtroModo === 'periodo' ? (
-                <select
-                  value={selectedPeriodo}
-                  onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
-                  className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-                >
-                  {PERIODOS.map((periodo) => (
-                    <option key={periodo.value} value={periodo.value}>
-                      {periodo.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-stone-600 mb-1">
-                      Fecha Desde
-                    </label>
-                    <input
-                      type="date"
-                      value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
-                      max={fechaFin || undefined}
-                      className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-stone-600 mb-1">
-                      Fecha Hasta
-                    </label>
-                    <input
-                      type="date"
-                      value={fechaFin}
-                      onChange={(e) => setFechaFin(e.target.value)}
-                      min={fechaInicio || undefined}
-                      className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            <PeriodFilter
+              filtroModo={filtroModo}
+              setFiltroModo={setFiltroModo}
+              selectedPeriodo={selectedPeriodo}
+              setSelectedPeriodo={setSelectedPeriodo}
+              fechaInicio={fechaInicio}
+              setFechaInicio={setFechaInicio}
+              fechaFin={fechaFin}
+              setFechaFin={setFechaFin}
+              accentColor="orange"
+            />
 
             <div>
               <label className="block text-sm font-semibold text-stone-800 mb-2">
@@ -1329,15 +1345,96 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
 
       {/* Tabla de Resultados Individuales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto">
-        <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          Resultados Individuales
-        </h3>
+        {/* Encabezado con controles masivos */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Resultados Individuales
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Seleccionar / Deseleccionar todos */}
+            <button
+              onClick={() => {
+                if (selectedForEmail.size === filteredResultados.length && filteredResultados.length > 0) {
+                  setSelectedForEmail(new Set());
+                } else {
+                  setSelectedForEmail(new Set(filteredResultados.map(p => p.email)));
+                }
+              }}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-stone-200 text-stone-700 hover:bg-stone-50 transition"
+            >
+              {selectedForEmail.size === filteredResultados.length && filteredResultados.length > 0
+                ? '☐ Deseleccionar todos'
+                : '☑ Seleccionar todos'}
+            </button>
+            {/* Envío masivo */}
+            {selectedForEmail.size > 0 && (
+              <button
+                onClick={handleBulkSendEmails}
+                disabled={isSendingBulk}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition font-semibold text-sm shadow-sm hover:shadow-md"
+              >
+                {isSendingBulk ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Enviando…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Enviar email a {selectedForEmail.size} {selectedForEmail.size === 1 ? 'persona' : 'personas'}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Resultado del envío masivo */}
+        {bulkEmailStatus && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 text-sm font-semibold ${
+            bulkEmailStatus.failed === 0
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : bulkEmailStatus.sent === 0
+              ? 'bg-red-50 text-red-800 border border-red-200'
+              : 'bg-amber-50 text-amber-800 border border-amber-200'
+          }`}>
+            <span>{bulkEmailStatus.failed === 0 ? '✅' : bulkEmailStatus.sent === 0 ? '❌' : '⚠️'}</span>
+            <span>
+              Enviados: <strong>{bulkEmailStatus.sent}</strong> de {bulkEmailStatus.total}
+              {bulkEmailStatus.failed > 0 && ` · Fallidos: ${bulkEmailStatus.failed}`}
+            </span>
+            <button onClick={() => setBulkEmailStatus(null)} className="ml-auto text-xs underline opacity-60 hover:opacity-100">
+              Cerrar
+            </button>
+          </div>
+        )}
+
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b-2 border-stone-200">
+              <th className="p-3 w-8">
+                <input
+                  type="checkbox"
+                  checked={selectedForEmail.size === filteredResultados.length && filteredResultados.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedForEmail(new Set(filteredResultados.map(p => p.email)));
+                    } else {
+                      setSelectedForEmail(new Set());
+                    }
+                  }}
+                  className="w-4 h-4 accent-orange-500 cursor-pointer"
+                  title="Seleccionar / deseleccionar todos"
+                />
+              </th>
               <th className="text-left p-3 font-bold text-stone-700">Nombre</th>
               <th className="text-left p-3 font-bold text-stone-700">Área</th>
               <th className="text-left p-3 font-bold text-stone-700">Rol</th>
@@ -1352,10 +1449,25 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           </thead>
           <tbody>
             {paginatedResultados.map((persona) => (
-              <tr 
-                key={persona.email} 
-                className="border-b border-stone-100 hover:bg-orange-50 transition"
+              <tr
+                key={persona.email}
+                className={`border-b border-stone-100 hover:bg-orange-50 transition ${
+                  selectedForEmail.has(persona.email) ? 'bg-orange-50' : ''
+                }`}
               >
+                <td className="p-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedForEmail.has(persona.email)}
+                    onChange={(e) => {
+                      const next = new Set(selectedForEmail);
+                      if (e.target.checked) next.add(persona.email);
+                      else next.delete(persona.email);
+                      setSelectedForEmail(next);
+                    }}
+                    className="w-4 h-4 accent-orange-500 cursor-pointer"
+                  />
+                </td>
                 <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
                 <td className="p-3 text-stone-600">{persona.area}</td>
                 <td className="p-3 text-stone-600">{persona.rol}</td>
@@ -1409,46 +1521,15 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
             ))}
           </tbody>
         </table>
-        
-        {/* Controles de paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-stone-200">
-            <div className="text-sm text-stone-600">
-              Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredResultados.length)} de {filteredResultados.length} resultados
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-2 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                Anterior
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-10 h-10 rounded-lg font-semibold text-sm transition ${
-                      currentPage === page
-                        ? 'bg-orange-500 text-white'
-                        : 'border border-stone-200 text-stone-700 hover:bg-stone-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-2 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredResultados.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          accentColor="orange"
+        />
       </div>
 
       {/* Modal para generar PDF con comentario */}
@@ -1458,13 +1539,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900">Generar PDF Individual</h3>
+                <h3 className="text-2xl font-bold text-slate-900">PDF + Email Individual</h3>
                 <p className="text-sm text-stone-600 mt-1">Evaluación de {personaParaPDF.nombre}</p>
               </div>
               <button
                 onClick={() => {
                   setModalPDFAbierto(false);
                   setComentarioRRHH('');
+                  setIndividualEmailResult(null);
                 }}
                 className="text-stone-400 hover:text-stone-600 transition"
               >
@@ -1476,7 +1558,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
 
             {/* Preview de datos */}
             <div className="bg-stone-50 rounded-xl p-4 mb-6 border border-stone-200">
-              <h4 className="text-sm font-bold text-stone-700 mb-3">Datos que se incluirán en el PDF:</h4>
+              <h4 className="text-sm font-bold text-stone-700 mb-3">Datos que se incluirán:</h4>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-stone-500">Email:</span>
@@ -1487,20 +1569,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   <p className="font-semibold text-slate-900">{personaParaPDF.area}</p>
                 </div>
                 <div>
-                  <span className="text-stone-500">Rol:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.rol}</p>
-                </div>
-                <div>
-                  <span className="text-stone-500">Promedio Final:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.promedioFinal.toFixed(2)} / 4.0</p>
+                  <span className="text-stone-500">Auto / Líder / Final:</span>
+                  <p className="font-semibold text-slate-900">
+                    {personaParaPDF.promedioAuto.toFixed(2)} / {personaParaPDF.promedioJefe.toFixed(2)} → <span className="text-orange-600">{personaParaPDF.promedioFinal.toFixed(2)}</span>
+                  </p>
                 </div>
                 <div>
                   <span className="text-stone-500">Seniority Alcanzado:</span>
                   <p className="font-semibold text-slate-900">{personaParaPDF.seniorityAlcanzado}</p>
-                </div>
-                <div>
-                  <span className="text-stone-500">Brecha Auto-Líder:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.gap.toFixed(2)}</p>
                 </div>
               </div>
             </div>
@@ -1514,13 +1590,25 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                 value={comentarioRRHH}
                 onChange={(e) => setComentarioRRHH(e.target.value)}
                 placeholder="Ej: Felicitaciones por el excelente desempeño. Continuar con el plan de capacitación en..."
-                rows={4}
+                rows={3}
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-sm"
               />
               <p className="text-xs text-stone-500 mt-1">
-                Este comentario aparecerá al final del PDF como feedback personalizado de Recursos Humanos.
+                Aparece en el PDF y en el cuerpo del email.
               </p>
             </div>
+
+            {/* Resultado del envío individual */}
+            {individualEmailResult && (
+              <div className={`flex items-start gap-3 px-4 py-3 rounded-xl mb-4 text-sm ${
+                individualEmailResult.ok
+                  ? 'bg-green-50 text-green-800 border border-green-200'
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}>
+                <span className="text-lg">{individualEmailResult.ok ? '✅' : '❌'}</span>
+                <span className="font-semibold">{individualEmailResult.msg}</span>
+              </div>
+            )}
 
             {/* Botones de acción */}
             <div className="flex items-center gap-3">
@@ -1531,22 +1619,31 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Solo Descargar
+                Solo Descargar PDF
               </button>
               <button
                 onClick={() => handleGenerarPDFIndividual(true)}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+                disabled={isSendingIndividual}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition font-semibold"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                Descargar + Instrucciones Email
+                {isSendingIndividual ? (
+                  <>
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Enviando…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Descargar + Enviar Email
+                  </>
+                )}
               </button>
             </div>
-
-            <p className="text-xs text-stone-500 mt-4 text-center">
-              💡 Tip: El botón "Instrucciones Email" te mostrará los datos del destinatario para que envíes manualmente desde tu cliente de correo.
-            </p>
           </div>
         </div>
       )}
