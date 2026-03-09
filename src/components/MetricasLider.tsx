@@ -9,6 +9,8 @@ import { transformarARadarData, calcularPromedioGeneral } from '../utils/calcula
 import { useApp } from '../context/AppContext';
 import { logger } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
+import OnboardingTooltip from '../components/OnboardingTooltip';
+import { liderSteps } from '../config/onboardingSteps';
 import type { Seniority } from '../types';
 import PageHeader from './shared/PageHeader';
 import PeriodFilter from './shared/PeriodFilter';
@@ -384,6 +386,23 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
+      <OnboardingTooltip
+        steps={liderSteps}
+        storageKey="onboarding-lider"
+        onStepChange={(step) => {
+          if (step.id.startsWith('lider-equipo')) {
+            if (subVista !== 'equipo') {
+              setSubVista('equipo');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          } else if (step.id === 'lider-mi-desempeno' || step.id === 'lider-radar' || step.id === 'lider-skills-badges' || step.id === 'lider-evolucion') {
+            if (subVista !== 'desempeno') {
+              setSubVista('desempeno');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }
+        }}
+      />
       <PageHeader
         title="Mi Equipo"
         currentUser={currentUser}
@@ -393,7 +412,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       <div className="p-6 max-w-[1600px] mx-auto">
       {/* Botones de Navegación */}
       {showEquipoSection && (
-      <div className="mb-6 flex gap-3">
+      <div data-onboarding="lider-tabs" className="mb-6 flex gap-3">
         <button
           onClick={() => setSubVista('desempeno')}
           className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all ${
@@ -440,7 +459,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         </h2>
 
         {/* Métricas Propias */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div data-onboarding="lider-mi-desempeno" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
             <p className="text-4xl font-bold text-slate-900">{miPromedioGeneral.toFixed(2)}</p>
@@ -483,7 +502,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
         {/* Análisis de Mejora/Empeoramiento */}
         {evaluacionesPropias.length > 0 && (analisisSkills.mejoraron.length > 0 || analisisSkills.empeoraron.length > 0 || analisisSkills.iguales.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div data-onboarding="lider-skills-badges" className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* Mejoraron */}
             {analisisSkills.mejoraron.length > 0 && (
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-200 p-4">
@@ -563,7 +582,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
         {/* Gráfico de Línea - Evolución de Skills */}
         {lineChartData.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
+          <div data-onboarding="lider-evolucion" className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
             <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -708,7 +727,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
         {/* Pentágonos Propios con Detalle Expandible */}
         {evaluacionesPropias.length > 0 ? (
-          <div className="space-y-6 mb-6">
+          <div data-onboarding="lider-radar" className="space-y-6 mb-6">
             {/* Vista Compacta - Grid de 2 columnas */}
             {!showDetailedView && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -964,7 +983,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         </div>
 
         {/* Filtros - Sticky con botón de colapsar */}
-        <div className="sticky top-0 z-10 bg-stone-50">
+        <div data-onboarding="lider-equipo-filtros" className="sticky top-0 z-10 bg-stone-50">
           <div className="bg-white border-b border-stone-100">
             <div className="flex items-center justify-between p-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -1065,7 +1084,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         {/* Gráfico de Bandas de Seniority - Mi Equipo */}
         {resultadosEquipo.length > 0 ? (
           <div className="p-6 pt-0 space-y-6">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-sm border border-blue-200 p-6">
+            <div data-onboarding="lider-equipo-scatter" className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-sm border border-blue-200 p-6">
               <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1351,7 +1370,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         )}
 
         {/* Tabla de Equipo */}
-        <div className="p-6 overflow-x-auto">
+        <div data-onboarding="lider-equipo-tabla" className="p-6 overflow-x-auto">
           {resultadosEquipo.length > 0 ? (
             <>
               <table className="w-full text-sm">

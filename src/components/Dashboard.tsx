@@ -17,6 +17,8 @@ import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellCha
 import EvolucionChart from '../components/EvolucionChart';
 import MetricasRRHH from '../components/MetricasRRHH';
 import MetricasLider from '../components/MetricasLider';
+import OnboardingTooltip from '../components/OnboardingTooltip';
+import { dashboardSteps } from '../config/onboardingSteps';
 import type { Seniority } from '../types';
 
 type VistaType = 'individual' | 'metricas' | 'equipo';
@@ -517,6 +519,23 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-stone-50">
+      <OnboardingTooltip
+        steps={dashboardSteps}
+        storageKey="onboarding-dashboard"
+        onStepChange={(step) => {
+          if (step.id === 'dashboard-metricas') {
+            if (vista !== 'metricas') {
+              setVista('metricas');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          } else if (step.id !== 'dashboard-tabs') {
+            if (vista !== 'individual') {
+              setVista('individual');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }
+        }}
+      />
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-stone-100">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
@@ -544,7 +563,7 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {/* Tabs para alternar vista */}
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div data-onboarding="dashboard-tabs" className="mb-6 flex flex-wrap gap-2">
           {/* Vista Individual - Todos pueden verla */}
           {canSeeAll(currentUser.rol) && (
             <button
@@ -615,9 +634,10 @@ export default function Dashboard() {
 
         {/* Vista de Métricas (solo RRHH/Director) */}
         {vista === 'metricas' && canSeeAll(currentUser.rol) ? (
-          <MetricasRRHH 
-            evaluations={visibleEvaluations} 
-            users={users} 
+          <div data-onboarding="dashboard-metricas">
+          <MetricasRRHH
+            evaluations={visibleEvaluations}
+            users={users}
             skillsMatrix={skillsMatrix}
             onSelectPersona={(email) => {
               setSelectedEmail(email);
@@ -626,6 +646,7 @@ export default function Dashboard() {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           />
+          </div>
         ) : null}
 
         {/* Vista Individual */}
@@ -633,7 +654,7 @@ export default function Dashboard() {
           <>
             {/* Filtros - Sticky con botón de colapsar */}
             {canSeeAll(currentUser.rol) && (
-              <div className="sticky top-0 z-10 bg-stone-50 pt-4 pb-2 mb-6">
+              <div data-onboarding="dashboard-filtros" className="sticky top-0 z-10 bg-stone-50 pt-4 pb-2 mb-6">
                 <div className="bg-white rounded-2xl shadow-md border border-stone-100">
                   <div className="flex items-center justify-between p-4 border-b border-stone-100">
                     <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -772,7 +793,7 @@ export default function Dashboard() {
 
             {/* Métricas */}
             {filteredEvaluations.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <div data-onboarding="dashboard-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
                   <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
                   <p className="text-4xl font-bold text-slate-900">{promedioGeneral.toFixed(2)}</p>
@@ -805,9 +826,19 @@ export default function Dashboard() {
 
             {/* Dumbbell Chart - Brecha Auto vs Jefe (solo con persona seleccionada) */}
             {selectedEmail && (
+              <div data-onboarding="dashboard-dumbbell">
               <DumbbellChart
                 data={dumbbellData}
                 title={`Brecha Auto vs Lider${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
+              />
+              </div>
+            )}
+
+            {/* Evolución Semestral - Solo mostrar si hay más de 1 semestre */}
+            {selectedEmail && evolucionData.length > 1 && (
+              <EvolucionChart
+                data={evolucionData}
+                title={`Evolución Semestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
               />
             )}
 
@@ -821,7 +852,7 @@ export default function Dashboard() {
 
             {/* Gráficos Radar - 4 gráficos (Hard Líder, Hard Analista, Soft Líder, Soft Analista) */}
             {filteredEvaluations.length > 0 ? (
-              <div className="flex flex-col items-center gap-8 max-w-7xl mx-auto">
+              <div data-onboarding="dashboard-radar" className="flex flex-col items-center gap-8 max-w-7xl mx-auto">
                 
                 {/* ===== HARD SKILLS LÍDER ===== */}
                 {radarDataHardLider.length > 0 && (!selectedFormulario || selectedFormulario === 'LIDER') && (

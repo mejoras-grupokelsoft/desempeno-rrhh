@@ -5,6 +5,8 @@ import { transformarARadarData, calcularPromedioGeneral } from '../utils/calcula
 import { filterByPeriod, type PeriodoType } from '../utils/dateUtils';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
+import OnboardingTooltip from './OnboardingTooltip';
+import { analistaSteps } from '../config/onboardingSteps';
 import type { Seniority } from '../types';
 import PageHeader from './shared/PageHeader';
 import PeriodFilter from './shared/PeriodFilter';
@@ -234,6 +236,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
+      <OnboardingTooltip steps={analistaSteps} storageKey="onboarding-analista" />
       {/* Header */}
       <PageHeader
         title="Mi Desempeño"
@@ -282,7 +285,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Cards principales */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div data-onboarding="analista-tarjetas" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Promedio Auto */}
           <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5">
             <div className="flex items-center gap-3 mb-3">
@@ -326,7 +329,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
         {/* Pentágonos con vista expandible */}
         {evaluacionesPropias.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div data-onboarding="analista-radar" className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
@@ -423,7 +426,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
         {/* Mi Evolución */}
         {evaluacionesPropias.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div data-onboarding="analista-evolucion" className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,7 +511,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
         )}
 
         {/* Fortalezas y Áreas de Mejora */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div data-onboarding="analista-fortalezas" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Fortalezas */}
           {analisisSkills.fortalezas.length > 0 && (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-sm border border-green-200 p-6">
@@ -566,7 +569,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
         {/* Comentarios del Líder */}
         {comentariosLider.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
+          <div data-onboarding="analista-feedback" className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
