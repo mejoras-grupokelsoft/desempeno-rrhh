@@ -8,19 +8,15 @@ import { filterByPeriod, calcularTendenciaSeniority, calcularBandasSeniority, PE
 import { compararSkillsPorPeriodo } from '../utils/newChartCalculations';
 import { SkillBreakdownInline } from './SkillBreakdown';
 import type { Seniority } from '../types';
+import jsPDF from 'jspdf';
 import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from '../utils/pdfGenerator';
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
 import { generarCuerpoEmail, enviarEmailConPDF, pdfToBase64, type ResultadoEvaluacion } from '../utils/emailService';
+import { normalizeText, logger } from '../utils/sanitize';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
-
-// Función para normalizar texto (sin acentos, minúsculas)
-const normalizeText = (text: string): string => {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-};
+import PersonaRadarPanel from './PersonaRadarPanel';
+import SkillBarsPanel from './SkillBarsPanel';
 
 interface MetricasRRHHProps {
   evaluations: Evaluation[];
@@ -29,7 +25,7 @@ interface MetricasRRHHProps {
   onSelectPersona?: (email: string) => void; // Callback para cambiar a vista individual
 }
 
-export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps): React.ReactElement {
+export default function MetricasRRHH({ evaluations, users, skillsMatrix }: MetricasRRHHProps): React.ReactElement {
   // Estados para filtros
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
@@ -164,7 +160,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       const firstEval = evals[0];
       map.set(email, {
         email,
-        nombre: `${firstEval.evaluadoNombre} ${firstEval.evaluadoApellido || ''}`.trim(),
+        nombre: firstEval.evaluadoNombre,
         area: firstEval.area,
         rol: firstEval.origen === 'ANALISTA' ? 'Analista' : 'Líder',
         promedioAuto,
@@ -222,6 +218,101 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       porArea,
     };
   }, [filteredResultados]);
+
+  // Estadísticas agrupadas por área para la Vista Áreas
+  const areaStats = useMemo(() => {
+    const map = new Map<string, { count: number; sumFinal: number; sumAuto: number; sumJefe: number; seniorityDist: Record<string, number> }>();
+    resultadosPorPersona.forEach(p => {
+      if (!map.has(p.area)) map.set(p.area, { count: 0, sumFinal: 0, sumAuto: 0, sumJefe: 0, seniorityDist: {} });
+      const d = map.get(p.area)!;
+      d.count++;
+      d.sumFinal += p.promedioFinal;
+      d.sumAuto += p.promedioAuto;
+      d.sumJefe += p.promedioJefe;
+      d.seniorityDist[p.seniorityAlcanzado] = (d.seniorityDist[p.seniorityAlcanzado] || 0) + 1;
+    });
+    return Array.from(map.entries())
+      .map(([area, d]) => ({
+        area,
+        count: d.count,
+        promedioFinal: d.count > 0 ? d.sumFinal / d.count : 0,
+        promedioAuto: d.count > 0 ? d.sumAuto / d.count : 0,
+        promedioJefe: d.count > 0 ? d.sumJefe / d.count : 0,
+        seniorityDist: d.seniorityDist,
+      }))
+      .sort((a, b) => b.promedioFinal - a.promedioFinal);
+  }, [resultadosPorPersona]);
+
+  // Datos enriquecidos por área: skill destacada, skill a mejorar, persona destacada, alerta de brecha
+  const areaInsights = useMemo(() => {
+    const insights = new Map<string, {
+      topSkill: string | null;
+      bottomSkill: string | null;
+      topPersona: string | null;
+      topPersonaScore: number;
+      brechaAlta: { nombre: string; gap: number } | null;
+    }>();
+
+    // Skills por área (de filteredEvaluations, excluyendo 'general')
+    const skillsByArea = new Map<string, Map<string, number[]>>();
+    filteredEvaluations
+      .filter(e => e.skillNombre && e.skillNombre !== 'general')
+      .forEach(e => {
+        if (!skillsByArea.has(e.area)) skillsByArea.set(e.area, new Map());
+        const areaMap = skillsByArea.get(e.area)!;
+        if (!areaMap.has(e.skillNombre)) areaMap.set(e.skillNombre, []);
+        areaMap.get(e.skillNombre)!.push(e.puntaje);
+      });
+
+    // Por cada área, calcular insights
+    const areas = new Set([
+      ...Array.from(skillsByArea.keys()),
+      ...resultadosPorPersona.map(p => p.area),
+    ]);
+
+    areas.forEach(area => {
+      // Skill destacada y a mejorar
+      let topSkill: string | null = null;
+      let bottomSkill: string | null = null;
+      const skillAvgs = skillsByArea.get(area);
+      if (skillAvgs && skillAvgs.size > 0) {
+        const entries = Array.from(skillAvgs.entries())
+          .map(([name, scores]) => ({ name, avg: scores.reduce((a, b) => a + b, 0) / scores.length }))
+          .sort((a, b) => b.avg - a.avg);
+        topSkill = entries[0]?.name || null;
+        bottomSkill = entries[entries.length - 1]?.name || null;
+      }
+
+      // Persona destacada y brecha más alta del área
+      const personasArea = resultadosPorPersona.filter(p => p.area === area);
+      const topPersona = personasArea.sort((a, b) => b.promedioFinal - a.promedioFinal)[0];
+      const brechaMaxima = personasArea
+        .filter(p => p.gap > 1)
+        .sort((a, b) => b.gap - a.gap)[0];
+
+      insights.set(area, {
+        topSkill,
+        bottomSkill,
+        topPersona: topPersona?.nombre || null,
+        topPersonaScore: topPersona?.promedioFinal || 0,
+        brechaAlta: brechaMaxima ? { nombre: brechaMaxima.nombre, gap: brechaMaxima.gap } : null,
+      });
+    });
+
+    return insights;
+  }, [filteredEvaluations, resultadosPorPersona]);
+
+  // Drill-down de área (para el tab Areas) — declarado ANTES del useMemo que lo usa
+  const [expandedAreaDrillDown, setExpandedAreaDrillDown] = useState<string | null>(null);
+  const [areaRadarEmail, setAreaRadarEmail] = useState<string | null>(null);
+
+  // Personas del área expandida (para el drill-down en tab Areas)
+  const personasDeAreaExpandida = useMemo(() => {
+    if (!expandedAreaDrillDown) return [];
+    return resultadosPorPersona
+      .filter(p => p.area === expandedAreaDrillDown)
+      .sort((a, b) => b.promedioFinal - a.promedioFinal);
+  }, [expandedAreaDrillDown, resultadosPorPersona]);
 
   const handleResetFilters = () => {
     setSelectedArea('');
@@ -286,10 +377,9 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       .filter(e => e.origen === 'ANALISTA')
       .forEach(e => {
         if (!personasMap.has(e.evaluadoEmail)) {
-          const apellido = (e as any).evaluadoApellido || '';
           personasMap.set(e.evaluadoEmail, {
             email: e.evaluadoEmail,
-            nombreCompleto: `${e.evaluadoNombre} ${apellido}`.trim(),
+            nombreCompleto: e.evaluadoNombre,
             areas: []
           });
         }
@@ -309,10 +399,9 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       .filter(e => e.origen === 'LIDER')
       .forEach(e => {
         if (!personasMap.has(e.evaluadoEmail)) {
-          const apellido = (e as any).evaluadoApellido || '';
           personasMap.set(e.evaluadoEmail, {
             email: e.evaluadoEmail,
-            nombreCompleto: `${e.evaluadoNombre} ${apellido}`.trim(),
+            nombreCompleto: e.evaluadoNombre,
             areas: []
           });
         }
@@ -434,6 +523,12 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     };
   }, [evaluations, resultadosPorPersona]);
 
+  // Estado persona seleccionada para radar detalle
+  const [selectedPersonaRadar, setSelectedPersonaRadar] = useState<{ email: string; nombre: string; area?: string } | null>(null);
+
+  // Tab principal de la vista
+  const [activeMainTab, setActiveMainTab] = useState<'dashboard' | 'individual' | 'areas'>('dashboard');
+
   // Estado de envío individual
   const [isSendingIndividual, setIsSendingIndividual] = useState(false);
   const [individualEmailResult, setIndividualEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -447,7 +542,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   };
 
   // Helper: construir PDF data para una persona
-  const buildPDFData = (persona: any): { pdf: ReturnType<typeof generarPDFIndividual>; nombreArchivo: string } => {
+  const buildPDFData = async (persona: any): Promise<{ pdf: jsPDF; nombreArchivo: string }> => {
     const allEvalsPersona = evaluations.filter(e => e.evaluadoEmail === persona.email);
     const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
@@ -455,8 +550,8 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
     const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
 
-    const radarDataHard = transformarARadarData(evalsHard, [], persona.seniorityAlcanzado, persona.rol, persona.area);
-    const radarDataSoft = transformarARadarData(evalsSoft, [], persona.seniorityAlcanzado, persona.rol, persona.area);
+    const radarDataHard = transformarARadarData(evalsHard, [], persona.seniorityAlcanzado, persona.area);
+    const radarDataSoft = transformarARadarData(evalsSoft, [], persona.seniorityAlcanzado, persona.area);
 
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
@@ -485,12 +580,23 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     const comentarioJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE' && e.comentarios?.trim());
     if (comentarioJefe) comentarios.push({ tipo: 'Líder', comentario: comentarioJefe.comentarios! });
 
+    const periodoEvaluado = (() => {
+      const fechas = evalsPersona.map(e => new Date(e.fecha)).filter(f => !isNaN(f.getTime()));
+      if (fechas.length === 0) return 'S Actual';
+      const min = new Date(Math.min(...fechas.map(f => f.getTime())));
+      const max = new Date(Math.max(...fechas.map(f => f.getTime())));
+      const fmt = (d: Date) => d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+      return min.getMonth() === max.getMonth() && min.getFullYear() === max.getFullYear()
+        ? fmt(max)
+        : `${fmt(min)} — ${fmt(max)}`;
+    })();
+
     const pdfData: PDFReporteData = {
       evaluadoNombre: persona.nombre,
       evaluadoEmail: persona.email,
       rol: persona.rol,
       area: persona.area,
-      periodoEvaluado: 'S Actual',
+      periodoEvaluado,
       liderEvaluadorNombre: liderNombre,
       promedioGeneral: persona.promedioFinal,
       seniorityAlcanzado: persona.seniorityAlcanzado,
@@ -502,7 +608,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       comentarioRRHH: comentarioRRHH.trim() || undefined,
     };
 
-    const pdf = generarPDFIndividual(pdfData);
+    const pdf = await generarPDFIndividual(pdfData);
     const nombreArchivo = `Evaluacion_${persona.nombre.replace(/\s+/g, '_')}_${fechaMasReciente.getFullYear()}.pdf`;
     return { pdf, nombreArchivo };
   };
@@ -534,7 +640,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
 
     for (const persona of personasSeleccionadas) {
       try {
-        const { pdf, nombreArchivo } = buildPDFData(persona);
+        const { pdf, nombreArchivo } = await buildPDFData(persona);
         const resultado: ResultadoEvaluacion = {
           promedioAuto: persona.promedioAuto,
           promedioJefe: persona.promedioJefe,
@@ -574,7 +680,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
     if (!personaParaPDF) return;
 
     setIndividualEmailResult(null);
-    const { pdf, nombreArchivo } = buildPDFData(personaParaPDF);
+    const { pdf, nombreArchivo } = await buildPDFData(personaParaPDF);
 
     // Siempre descargar el PDF
     pdf.save(nombreArchivo);
@@ -622,7 +728,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
   };
 
   // Función para generar PDF consolidado
-  const handleGenerarPDFConsolidado = () => {
+  const handleGenerarPDFConsolidado = async () => {
     const area = selectedArea || 'Todas las áreas';
     const periodoObj = PERIODOS.find(p => p.value === selectedPeriodo);
     const periodoLabel = periodoObj?.label || 'Personalizado';
@@ -632,16 +738,17 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
       ? resultadosPorPersona.reduce((sum, p) => sum + p.promedioFinal, 0) / resultadosPorPersona.length
       : 0;
     
-    const pdf = generarPDFConsolidado(
+    const pdfConsolidado = await generarPDFConsolidado(
       area,
       periodoLabel,
       filteredEvaluations,
       promedioArea,
-      resultadosPorPersona.length
+      resultadosPorPersona.length,
+      resultadosPorPersona
     );
 
     const nombreArchivo = `Reporte_Consolidado_${area.replace(/\s+/g, '_')}_${periodoLabel.replace(/\s+/g, '_')}.pdf`;
-    pdf.save(nombreArchivo);
+    pdfConsolidado.save(nombreArchivo);
   };
 
   return (
@@ -778,6 +885,30 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           )}
         </div>
       </div>
+
+      {/* Tabs principales */}
+      <div className="flex gap-2 border-b border-stone-200 pb-0">
+        {([
+          { key: 'dashboard', label: '📊 Dashboard' },
+          { key: 'individual', label: '👤 Vista Individual' },
+          { key: 'areas', label: '🏢 Vista Áreas' },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveMainTab(tab.key)}
+            className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all border-b-2 ${
+              activeMainTab === tab.key
+                ? 'border-orange-500 text-orange-600 bg-white shadow-sm'
+                : 'border-transparent text-stone-500 hover:text-stone-700 hover:bg-stone-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB: DASHBOARD ─────────────────────────────── */}
+      {activeMainTab === 'dashboard' && <>
 
       {/* Métricas Generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
@@ -1113,7 +1244,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   stroke="#94a3b8"
                   strokeWidth={2}
                   shape="circle"
-                  r={5}
+                  r={8}
                   name="Q1 (Anterior)"
                 />
                 
@@ -1124,17 +1255,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   stroke="#0d9488"
                   strokeWidth={2}
                   shape="circle"
-                  r={7}
+                  r={12}
                   name="Q2 (Actual)"
                   onClick={(data) => {
                     if (data && data.payload) {
-                      // Buscar por nombre (evaluadoNombre) que coincida con payload.persona
                       const evaluacion = filteredEvaluations.find(
                         e => e.evaluadoNombre === data.payload.persona && e.origen === 'ANALISTA'
                       );
-                      
                       const evaluadoEmail = evaluacion?.evaluadoEmail;
-                      
                       if (evaluadoEmail) {
                         setDrillDownPersona({
                           email: evaluadoEmail,
@@ -1303,7 +1431,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   stroke="#94a3b8"
                   strokeWidth={2}
                   shape="circle"
-                  r={5}
+                  r={8}
                   name="Q1 (Anterior)"
                 />
                 
@@ -1314,17 +1442,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
                   stroke="#9333ea"
                   strokeWidth={2}
                   shape="circle"
-                  r={7}
+                  r={12}
                   name="Q2 (Actual)"
                   onClick={(data) => {
                     if (data && data.payload) {
-                      // Buscar por nombre (evaluadoNombre) que coincida con payload.persona
                       const evaluacion = filteredEvaluations.find(
                         e => e.evaluadoNombre === data.payload.persona && e.origen === 'LIDER'
                       );
-                      
                       const evaluadoEmail = evaluacion?.evaluadoEmail;
-                      
                       if (evaluadoEmail) {
                         setDrillDownPersona({
                           email: evaluadoEmail,
@@ -1341,23 +1466,33 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           </div>
       </div>
 
-      {/* DESGLOSE INLINE DE SKILLS POR PERSONA */}
-      {drillDownPersona && drillDownPersona.origen === 'ANALISTA' && skillsComparacionAnalistas.length > 0 && (
-        <SkillBreakdownInline
-          personaNombre={drillDownPersona?.nombre ?? ''}
-          skills={skillsComparacionAnalistas}
-          periodoA="Anterior (más de 3 meses)"
-          periodoB="Actual (últimos 3 meses)"
-        />
-      )}
-      {drillDownPersona && drillDownPersona.origen === 'LIDER' && skillsComparacionLideres.length > 0 && (
-        <SkillBreakdownInline
-          personaNombre={drillDownPersona?.nombre ?? ''}
-          skills={skillsComparacionLideres}
-          periodoA="Anterior (más de 3 meses)"
-          periodoB="Actual (últimos 3 meses)"
-        />
-      )}
+      {/* DESGLOSE POR PERSONA — SkillBarsPanel (barras + comparación área) */}
+      {drillDownPersona && (() => {
+        // Obtener peers del mismo área para comparación
+        const areaPersona = resultadosPorPersona.find(p => p.email === drillDownPersona.email)?.area;
+        const peersArea = areaPersona
+          ? resultadosPorPersona
+              .filter(p => p.area === areaPersona)
+              .map(p => ({ nombre: p.nombre, promedioFinal: p.promedioFinal, seniorityAlcanzado: p.seniorityAlcanzado }))
+              .sort((a, b) => b.promedioFinal - a.promedioFinal)
+          : [];
+        return (
+          <SkillBarsPanel
+            email={drillDownPersona.email}
+            nombre={drillDownPersona.nombre}
+            area={areaPersona}
+            origen={drillDownPersona.origen}
+            skillsMatrix={skillsMatrix}
+            peers={peersArea}
+            onClose={() => setDrillDownPersona(null)}
+          />
+        );
+      })()}
+
+      </> /* fin tab dashboard */}
+
+      {/* ── TAB: INDIVIDUAL ────────────────────────────── */}
+      {activeMainTab === 'individual' && <>
 
       {/* Tabla de Resultados Individuales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto">
@@ -1369,6 +1504,7 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
             </svg>
             Resultados Individuales
           </h3>
+          <p className="text-xs text-stone-500 font-normal">Hacé clic en una fila para ver el radar de habilidades</p>
           <div className="flex flex-wrap items-center gap-2">
             {/* Seleccionar / Deseleccionar todos */}
             <button
@@ -1467,9 +1603,14 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
             {paginatedResultados.map((persona) => (
               <tr
                 key={persona.email}
-                className={`border-b border-stone-100 hover:bg-orange-50 transition ${
+                className={`border-b border-stone-100 hover:bg-orange-50 transition cursor-pointer ${
                   selectedForEmail.has(persona.email) ? 'bg-orange-50' : ''
-                }`}
+                } ${selectedPersonaRadar?.email === persona.email ? 'ring-2 ring-inset ring-orange-300' : ''}`}
+                onClick={() => setSelectedPersonaRadar(
+                  selectedPersonaRadar?.email === persona.email
+                    ? null
+                    : { email: persona.email, nombre: persona.nombre, area: persona.area }
+                )}
               >
                 <td className="p-3 text-center">
                   <input
@@ -1547,6 +1688,268 @@ export default function MetricasRRHH({ evaluations, users }: MetricasRRHHProps):
           accentColor="orange"
         />
       </div>
+
+      {/* RADAR DE HABILIDADES REALES — se muestra al hacer clic en una fila */}
+      {selectedPersonaRadar && (() => {
+        const userRol = users.find(u => u.email === selectedPersonaRadar.email)?.rol;
+        return (
+          <PersonaRadarPanel
+            email={selectedPersonaRadar.email}
+            nombre={selectedPersonaRadar.nombre}
+            area={selectedPersonaRadar.area}
+            skillsMatrix={skillsMatrix}
+            rolObjetivo={userRol === 'Lider' ? 'LIDER' : 'ANALISTA'}
+            onClose={() => setSelectedPersonaRadar(null)}
+          />
+        );
+      })()}
+
+      </> /* fin tab individual */}
+
+      {/* ── TAB: ÁREAS ─────────────────────────────────── */}
+      {activeMainTab === 'areas' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-bold">🏢</span>
+              Desempeño por Área
+              <span className="text-xs font-normal text-stone-400 ml-1">— clic en un área para ver el desglose por persona</span>
+            </h2>
+            {areaStats.length === 0 ? (
+              <p className="text-stone-400 text-sm text-center py-8">No hay datos con los filtros actuales.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {areaStats.map(a => {
+                  const seniority = Object.entries(a.seniorityDist).sort((x, y) => y[1] - x[1]);
+                  const pct = (n: number) => Math.round((n / 4) * 100);
+                  const barColor = a.promedioFinal >= 3.5 ? 'bg-green-500' : a.promedioFinal >= 2.5 ? 'bg-orange-400' : 'bg-red-400';
+                  const insight = areaInsights.get(a.area);
+                  const gapArea = a.promedioAuto > 0 && a.promedioJefe > 0
+                    ? Math.abs(a.promedioAuto - a.promedioJefe)
+                    : 0;
+                  const isExpanded = expandedAreaDrillDown === a.area;
+                  return (
+                    <div
+                      key={a.area}
+                      className={`border rounded-xl p-4 transition space-y-3 cursor-pointer ${
+                        isExpanded
+                          ? 'border-orange-300 ring-2 ring-orange-200 shadow-md'
+                          : 'border-stone-200 hover:shadow-md hover:border-orange-200'
+                      }`}
+                      onClick={() => {
+                        setExpandedAreaDrillDown(isExpanded ? null : a.area);
+                        setAreaRadarEmail(null);
+                      }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">{a.area}</p>
+                          <p className="text-xs text-stone-500">{a.count} persona{a.count !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-black text-orange-600">{a.promedioFinal.toFixed(2)}</span>
+                          <svg className={`w-4 h-4 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Barra de promedio */}
+                      <div>
+                        <div className="flex justify-between text-xs text-stone-500 mb-1">
+                          <span>Promedio final</span>
+                          <span>{pct(a.promedioFinal)}%</span>
+                        </div>
+                        <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct(a.promedioFinal)}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Auto vs Jefe */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-blue-50 rounded-lg p-2 text-center">
+                          <p className="text-stone-500">Autoevaluación</p>
+                          <p className="font-bold text-blue-700">{a.promedioAuto.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-orange-50 rounded-lg p-2 text-center">
+                          <p className="text-stone-500">Jefe</p>
+                          <p className="font-bold text-orange-700">{a.promedioJefe > 0 ? a.promedioJefe.toFixed(2) : '—'}</p>
+                        </div>
+                      </div>
+
+                      {/* Insights del área — conclusiones accionables */}
+                      {insight && (
+                        <div className="border-t border-stone-100 pt-3 space-y-2">
+                          {/* Brecha alta entre auto y jefe — prioridad máxima */}
+                          {insight.brechaAlta && (
+                            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 space-y-1">
+                              <p className="text-xs font-bold text-red-700 flex items-center gap-1">
+                                ⚠️ Brecha de percepción alta
+                              </p>
+                              <p className="text-xs text-red-600">
+                                <span className="font-semibold">{insight.brechaAlta.nombre}</span> tiene una diferencia de <span className="font-bold">{insight.brechaAlta.gap.toFixed(2)} pts</span> entre autoevaluación y jefe.
+                              </p>
+                              <p className="text-xs text-red-500 italic">→ Recomendado: conversación de feedback individual.</p>
+                            </div>
+                          )}
+                          {gapArea > 0.8 && !insight.brechaAlta && (
+                            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 space-y-1">
+                              <p className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                                ⚠️ Brecha área moderada
+                              </p>
+                              <p className="text-xs text-amber-600">
+                                Diferencia promedio auto vs jefe: <span className="font-bold">{gapArea.toFixed(2)} pts</span>
+                              </p>
+                              <p className="text-xs text-amber-500 italic">→ Puede indicar falta de feedback regular o criterios distintos.</p>
+                            </div>
+                          )}
+
+                          {/* Fortaleza destacada */}
+                          {insight.topSkill && insight.topSkill !== insight.bottomSkill && (
+                            <div className="flex items-start gap-2">
+                              <span className="mt-0.5 text-sm">💪</span>
+                              <div>
+                                <p className="text-xs font-semibold text-green-700">Skill más fuerte</p>
+                                <p className="text-xs text-stone-600 truncate" title={insight.topSkill}>{insight.topSkill}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Skill a mejorar */}
+                          {insight.bottomSkill && insight.topSkill !== insight.bottomSkill && (
+                            <div className="flex items-start gap-2">
+                              <span className="mt-0.5 text-sm">📈</span>
+                              <div>
+                                <p className="text-xs font-semibold text-orange-600">Oportunidad de mejora</p>
+                                <p className="text-xs text-stone-600 truncate" title={insight.bottomSkill}>{insight.bottomSkill}</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Persona destacada */}
+                          {insight.topPersona && (
+                            <div className="flex items-start gap-2">
+                              <span className="mt-0.5 text-sm">⭐</span>
+                              <div>
+                                <p className="text-xs font-semibold text-stone-700">Mejor desempeño</p>
+                                <p className="text-xs text-stone-500">{insight.topPersona} · {insight.topPersonaScore.toFixed(2)}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Distribución seniority */}
+                      {seniority.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {seniority.map(([sen, cnt]) => (
+                            <span key={sen} className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-medium">
+                              {sen}: {cnt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Panel de desglose del área expandida */}
+          {expandedAreaDrillDown && personasDeAreaExpandida.length > 0 && (
+            <div className="bg-white rounded-2xl border border-orange-200 shadow-md p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Desglose: <span className="text-orange-600">{expandedAreaDrillDown}</span>
+                </h3>
+                <button
+                  onClick={() => { setExpandedAreaDrillDown(null); setAreaRadarEmail(null); }}
+                  className="p-1.5 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-stone-600 transition"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-stone-200">
+                      <th className="text-left p-3 font-bold text-stone-700">Nombre</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Rol</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Auto</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Jefe</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Final</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Seniority</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Brecha</th>
+                      <th className="text-center p-3 font-bold text-stone-700">Radar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {personasDeAreaExpandida.map(p => {
+                      const colorFinal = p.promedioFinal >= 3.5 ? 'text-green-600' : p.promedioFinal >= 2.5 ? 'text-orange-500' : 'text-red-500';
+                      const brechaAlta = p.gap > 1;
+                      const isSelected = areaRadarEmail === p.email;
+                      return (
+                        <tr key={p.email} className={`border-b border-stone-100 hover:bg-orange-50 transition ${isSelected ? 'bg-orange-50 ring-2 ring-inset ring-orange-200' : ''}`}>
+                          <td className="p-3 font-semibold text-slate-900">{p.nombre}</td>
+                          <td className="text-center p-3 text-xs text-stone-500">{p.rol}</td>
+                          <td className="text-center p-3 text-blue-600 font-medium">{p.promedioAuto.toFixed(2)}</td>
+                          <td className="text-center p-3 text-orange-600 font-medium">{p.promedioJefe > 0 ? p.promedioJefe.toFixed(2) : '—'}</td>
+                          <td className={`text-center p-3 font-bold ${colorFinal}`}>{p.promedioFinal.toFixed(2)}</td>
+                          <td className="text-center p-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                              p.seniorityAlcanzado === 'Senior' ? 'bg-orange-100 text-orange-700' :
+                              p.seniorityAlcanzado === 'Semi Senior' ? 'bg-blue-100 text-blue-700' :
+                              p.seniorityAlcanzado === 'Junior' ? 'bg-stone-100 text-stone-600' :
+                              'bg-stone-50 text-stone-400'
+                            }`}>{p.seniorityAlcanzado}</span>
+                          </td>
+                          <td className="text-center p-3">
+                            <span className={`text-xs font-bold ${brechaAlta ? 'text-red-600' : 'text-stone-400'}`}>
+                              {brechaAlta ? '⚠ ' : ''}{p.gap.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="text-center p-3">
+                            <button
+                              onClick={() => setAreaRadarEmail(isSelected ? null : p.email)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                                isSelected
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200'
+                              }`}
+                            >
+                              {isSelected ? 'Ocultar' : 'Ver'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Radar de persona seleccionada */}
+              {areaRadarEmail && (() => {
+                const persona = personasDeAreaExpandida.find(p => p.email === areaRadarEmail);
+                return persona ? (
+                  <PersonaRadarPanel
+                    email={areaRadarEmail}
+                    nombre={persona.nombre}
+                    area={expandedAreaDrillDown}
+                    skillsMatrix={skillsMatrix}
+                    rolObjetivo={persona.rol === 'Líder' ? 'LIDER' : 'ANALISTA'}
+                    onClose={() => setAreaRadarEmail(null)}
+                  />
+                ) : null;
+              })()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal para generar PDF con comentario */}
       {modalPDFAbierto && personaParaPDF && (

@@ -339,6 +339,7 @@ export function comparePersonaBetweenPeriods<T extends { fecha: string; skillNom
     const skillMap = new Map<string, { tipo: string; auto: number[]; jefe: number[] }>();
     
     evals.forEach(e => {
+      if (!e.skillNombre || e.skillNombre.toLowerCase() === 'general') return; // Filtrar placeholder
       if (!skillMap.has(e.skillNombre)) {
         skillMap.set(e.skillNombre, { tipo: e.skillTipo, auto: [], jefe: [] });
       }
@@ -363,6 +364,43 @@ export function comparePersonaBetweenPeriods<T extends { fecha: string; skillNom
     sAnterior: processPeriod(evalsAnterior),
     sActual: processPeriod(evalsActual),
   };
+}
+
+/**
+ * Agrupa evaluaciones históricas por semestre (ej: "2022-S1", "2023-S2")
+ * y calcula el promedio de puntaje por semestre.
+ * Útil para mostrar evolución a lo largo de 3+ semestres.
+ */
+export function agruparPorSemestre<T extends { fecha: string; puntaje: number; tipoEvaluador: string }>(
+  evaluations: T[]
+): Array<{ semestre: string; promedio: number; auto: number; jefe: number }> {
+  const semestreMap = new Map<string, { auto: number[]; jefe: number[] }>();
+
+  evaluations.forEach(e => {
+    const date = new Date(e.fecha);
+    const year = date.getFullYear();
+    const semester = Math.floor(date.getMonth() / 6) + 1;
+    const key = `${year}-S${semester}`;
+
+    if (!semestreMap.has(key)) {
+      semestreMap.set(key, { auto: [], jefe: [] });
+    }
+    const data = semestreMap.get(key)!;
+    if (e.tipoEvaluador === 'AUTO') {
+      data.auto.push(e.puntaje);
+    } else {
+      data.jefe.push(e.puntaje);
+    }
+  });
+
+  return Array.from(semestreMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([semestre, data]) => {
+      const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
+      const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
+      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+      return { semestre, promedio: Math.round(promedio * 100) / 100, auto: Math.round(auto * 100) / 100, jefe: Math.round(jefe * 100) / 100 };
+    });
 }
 
 /**

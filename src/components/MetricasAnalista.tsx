@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
-import type { Evaluation, User } from '../types';
-import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
-import { filterByPeriod, type PeriodoType } from '../utils/dateUtils';
+import { useMemo, useState, useEffect } from 'react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import type { Evaluation, User, RadarDataPoint } from '../types';
+import { obtenerValorEsperado } from '../utils/calculations';
+import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
+import { fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
 import OnboardingTooltip from './OnboardingTooltip';
@@ -10,6 +11,8 @@ import { analistaSteps } from '../config/onboardingSteps';
 import type { Seniority } from '../types';
 import PageHeader from './shared/PageHeader';
 import PeriodFilter from './shared/PeriodFilter';
+import FormularioView from './FormularioView';
+import MiDesempenoPanel from './MiDesempenoPanel';
 
 interface MetricasAnalistaProps {
   evaluations: Evaluation[];
@@ -19,12 +22,18 @@ interface MetricasAnalistaProps {
 
 export default function MetricasAnalista({ evaluations, skillsMatrix, currentUser }: MetricasAnalistaProps) {
   const { logout } = useApp();
+  const [subVista, setSubVista] = useState<'desempeno' | 'formulario'>('desempeno');
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [showDetailedView, setShowDetailedView] = useState<boolean>(false);
   const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodoType>('HISTORICO');
   const [filtroModo, setFiltroModo] = useState<'periodo' | 'rango'>('periodo');
   const [fechaInicio, setFechaInicio] = useState<string>('');
   const [fechaFin, setFechaFin] = useState<string>('');
+  const [expandedEvolutions, setExpandedEvolutions] = useState<{mejoraron: boolean, iguales: boolean, empeoraron: boolean}>({
+    mejoraron: false,
+    iguales: false,
+    empeoraron: false
+  });
 
   // Obtener todas las áreas donde el analista tiene evaluaciones
   const areasDelAnalista = useMemo(() => {
@@ -67,27 +76,6 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     return filtered;
   }, [evaluations, currentUser.email, selectedArea, selectedPeriodo, filtroModo, fechaInicio, fechaFin]);
 
-  // Separar por tipo de evaluador y skill
-  const evalsAutoHard = useMemo(() => 
-    evaluacionesPropias.filter(e => e.tipoEvaluador === 'AUTO' && e.skillTipo === 'HARD'),
-    [evaluacionesPropias]
-  );
-
-  const evalsAutoSoft = useMemo(() => 
-    evaluacionesPropias.filter(e => e.tipoEvaluador === 'AUTO' && e.skillTipo === 'SOFT'),
-    [evaluacionesPropias]
-  );
-
-  const evalsJefeHard = useMemo(() => 
-    evaluacionesPropias.filter(e => e.tipoEvaluador === 'JEFE' && e.skillTipo === 'HARD'),
-    [evaluacionesPropias]
-  );
-
-  const evalsJefeSoft = useMemo(() => 
-    evaluacionesPropias.filter(e => e.tipoEvaluador === 'JEFE' && e.skillTipo === 'SOFT'),
-    [evaluacionesPropias]
-  );
-
   // Calcular seniority esperado según rol
   const seniorityEsperado: Seniority = useMemo(() => {
     if (currentUser.rol === 'Analista') return 'Junior';
@@ -95,42 +83,72 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     return 'Senior';
   }, [currentUser.rol]);
 
-  // Transformar a datos de radar
-  const radarDataAutoHard = useMemo(() => 
-    transformarARadarData(evalsAutoHard, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea || currentUser.area),
-    [evalsAutoHard, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea, currentUser.area]
-  );
+  // ── Fetch de promedios reales por skill (desde responses → questions → skills) ──
+  const [skillRows, setSkillRows] = useState<SkillAvgRow[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState(false);
 
-  const radarDataAutoSoft = useMemo(() => 
-    transformarARadarData(evalsAutoSoft, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea || currentUser.area),
-    [evalsAutoSoft, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea, currentUser.area]
-  );
+  useEffect(() => {
+    if (!currentUser.email) return;
+    setLoadingSkills(true);
+    fetchPersonaSkillAverages(currentUser.email, undefined, currentUser.area)
+      .then(rows => setSkillRows(rows))
+      .catch(err => console.error('Error fetching skill averages:', err))
+      .finally(() => setLoadingSkills(false));
+  }, [currentUser.email]);
 
-  const radarDataJefeHard = useMemo(() => 
-    transformarARadarData(evalsJefeHard, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea || currentUser.area),
-    [evalsJefeHard, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea, currentUser.area]
-  );
+  // Convertir SkillAvgRow → RadarDataPoint con valor esperado de skillsMatrix
+  const radarDataHard = useMemo((): RadarDataPoint[] => {
+    const area = selectedArea || currentUser.area || '';
+    // Si skills_matrix tiene configuración para esta área, solo mostrar esas skills
+    const areaMatrix = skillsMatrix.filter(m => m.area === area);
+    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+    return skillRows
+      .filter(r => r.skill_tipo === 'HARD')
+      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre))
+      .sort((a, b) => b.avg_total - a.avg_total)
+      .slice(0, 7) // Máximo 7 skills para legibilidad del radar
+      .map(r => ({
+        skill: r.skill_nombre,
+        auto: r.avg_auto ?? 0,
+        jefe: r.avg_jefe ?? 0,
+        promedio: r.avg_total,
+        esperado: obtenerValorEsperado(skillsMatrix, r.skill_nombre, seniorityEsperado, area),
+      }));
+  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area]);
 
-  const radarDataJefeSoft = useMemo(() => 
-    transformarARadarData(evalsJefeSoft, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea || currentUser.area),
-    [evalsJefeSoft, skillsMatrix, seniorityEsperado, currentUser.rol, selectedArea, currentUser.area]
-  );
+  const radarDataSoft = useMemo((): RadarDataPoint[] => {
+    const area = selectedArea || currentUser.area || '';
+    const areaMatrix = skillsMatrix.filter(m => m.area === area);
+    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+    return skillRows
+      .filter(r => r.skill_tipo === 'SOFT')
+      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre))
+      .sort((a, b) => b.avg_total - a.avg_total)
+      .slice(0, 7) // Máximo 7 skills para legibilidad del radar
+      .map(r => ({
+        skill: r.skill_nombre,
+        auto: r.avg_auto ?? 0,
+        jefe: r.avg_jefe ?? 0,
+        promedio: r.avg_total,
+        esperado: obtenerValorEsperado(skillsMatrix, r.skill_nombre, seniorityEsperado, area),
+      }));
+  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area]);
 
-  // Calcular promedios
+  // Calcular promedios desde las filas de skills
   const promedioAuto = useMemo(() => {
-    const allAuto = [...radarDataAutoHard, ...radarDataAutoSoft];
-    return calcularPromedioGeneral(allAuto);
-  }, [radarDataAutoHard, radarDataAutoSoft]);
+    const vals = skillRows.map(r => r.avg_auto).filter((v): v is number => v !== null);
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }, [skillRows]);
 
   const promedioJefe = useMemo(() => {
-    const allJefe = [...radarDataJefeHard, ...radarDataJefeSoft];
-    return calcularPromedioGeneral(allJefe);
-  }, [radarDataJefeHard, radarDataJefeSoft]);
+    const vals = skillRows.map(r => r.avg_jefe).filter((v): v is number => v !== null);
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }, [skillRows]);
 
-  const promedioFinal = useMemo(() => 
-    (promedioAuto + promedioJefe) / 2,
-    [promedioAuto, promedioJefe]
-  );
+  const promedioFinal = useMemo(() => {
+    const vals = skillRows.map(r => r.avg_total);
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }, [skillRows]);
 
   // Evolución temporal (últimos 6 meses) - Solo mostrar si hay más de un periodo
   const evolucionTemporal = useMemo(() => {
@@ -177,10 +195,11 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
   // Fortalezas y áreas de mejora
   const analisisSkills = useMemo(() => {
-    const allSkills = [...radarDataAutoHard, ...radarDataAutoSoft, ...radarDataJefeHard, ...radarDataJefeSoft];
+    const allSkills = [...radarDataHard, ...radarDataSoft];
     const skillsAgrupadas = new Map<string, { promedios: number[], esperado: number, tipo: string }>();
 
     allSkills.forEach(skill => {
+      if (skill.skill.toLowerCase() === 'general') return; // Filtrar placeholder
       if (!skillsAgrupadas.has(skill.skill)) {
         skillsAgrupadas.set(skill.skill, { 
           promedios: [], 
@@ -214,7 +233,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
       .slice(0, 5);
 
     return { fortalezas, mejoras };
-  }, [radarDataAutoHard, radarDataAutoSoft, radarDataJefeHard, radarDataJefeSoft]);
+  }, [radarDataHard, radarDataSoft]);
 
   // Comentarios del líder (deduplicados — el comentario es de la persona, no de cada skill)
   const comentariosLider = useMemo(() => {
@@ -233,6 +252,122 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
       }))
       .slice(0, 5);
   }, [evaluacionesPropias]);
+
+  // ═════════════════════════════════════════════════════════════════
+  // SECCIÓN EVOLUCIÓN DE COMPETENCIAS
+  // ═════════════════════════════════════════════════════════════════
+
+  // Comparación entre semestres anteriores y actuales
+  const miComparacion = useMemo(() => {
+    return comparePersonaBetweenPeriods(evaluacionesPropias);
+  }, [evaluacionesPropias]);
+
+  // Evolución histórica por semestre
+  const evolucionHistorica = useMemo(() => {
+    return agruparPorSemestre(evaluacionesPropias);
+  }, [evaluacionesPropias]);
+
+  const esHistorico = evolucionHistorica.length > 2;
+
+  // Datos para gráfico de línea (evolución por skill)
+  // Cuando hay historial de 3+ semestres usa los dos últimos disponibles
+  const lineChartData = useMemo(() => {
+    const { sAnterior, sActual } = miComparacion;
+
+    const buildFromPeriods = (
+      periodoAnterior: { skill: string; tipo: string; promedio: number }[],
+      periodoActual: { skill: string; tipo: string; promedio: number }[],
+      labelAnt?: string,
+      labelAct?: string,
+    ) => {
+      const allSkills = new Set([...periodoAnterior.map(s => s.skill), ...periodoActual.map(s => s.skill)]);
+      return Array.from(allSkills)
+        .filter(skill => skill.toLowerCase() !== 'general')
+        .map(skill => {
+          const ant = periodoAnterior.find(s => s.skill === skill);
+          const act = periodoActual.find(s => s.skill === skill);
+          return {
+            skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
+            skillCompleto: skill,
+            'Semestre Anterior': ant?.promedio || 0,
+            'Semestre Actual': act?.promedio || 0,
+            tipo: (act?.tipo || ant?.tipo || 'HARD').toUpperCase(),
+            labelAnterior: labelAnt,
+            labelActual: labelAct,
+          };
+        })
+        .filter(d => d['Semestre Anterior'] > 0 || d['Semestre Actual'] > 0)
+        .sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
+    };
+
+    // Caso 1: Ambos semestres del calendario tienen datos
+    if (sActual.length > 0 && sAnterior.length > 0) {
+      return buildFromPeriods(sAnterior, sActual);
+    }
+
+    // Caso 2: Histórico — usar los dos últimos semestres disponibles
+    if (evolucionHistorica.length >= 2) {
+      const semestres = evolucionHistorica.map(s => s.semestre);
+      const ultimoSem = semestres[semestres.length - 1];
+      const penultimoSem = semestres[semestres.length - 2];
+
+      const calcPeriod = (sem: string) => {
+        const skillMap = new Map<string, { tipo: string; autos: number[]; jefes: number[] }>();
+        evaluacionesPropias
+          .filter(e => {
+            const d = new Date(e.fecha);
+            return `${d.getFullYear()}-S${Math.floor(d.getMonth() / 6) + 1}` === sem;
+          })
+          .forEach(e => {
+            if (!e.skillNombre || e.skillNombre.toLowerCase() === 'general') return;
+            if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { tipo: (e.skillTipo || 'HARD').toUpperCase(), autos: [], jefes: [] });
+            const d = skillMap.get(e.skillNombre)!;
+            if (e.tipoEvaluador === 'AUTO') d.autos.push(e.puntaje);
+            else d.jefes.push(e.puntaje);
+          });
+        return Array.from(skillMap.entries()).map(([skill, d]) => {
+          const auto = d.autos.length > 0 ? d.autos.reduce((a, b) => a + b) / d.autos.length : 0;
+          const jefe = d.jefes.length > 0 ? d.jefes.reduce((a, b) => a + b) / d.jefes.length : 0;
+          return { skill, tipo: d.tipo, promedio: auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe) };
+        });
+      };
+
+      const periodoActual = calcPeriod(ultimoSem);
+      const periodoAnterior = calcPeriod(penultimoSem);
+      if (periodoActual.length > 0 || periodoAnterior.length > 0) {
+        return buildFromPeriods(periodoAnterior, periodoActual, penultimoSem, ultimoSem);
+      }
+    }
+
+    return [];
+  }, [miComparacion, evolucionHistorica, evaluacionesPropias]);
+
+  // Análisis de mejora/empeoramiento
+  const analisisEvolucion = useMemo(() => {
+    if (!miComparacion) return { mejoraron: [], iguales: [], empeoraron: [] };
+
+    const { sAnterior, sActual } = miComparacion;
+    const mejoraron: string[] = [];
+    const iguales: string[] = [];
+    const empeoraron: string[] = [];
+
+    const skillsUnicos = new Set([
+      ...sAnterior.map(s => s.skill),
+      ...sActual.map(s => s.skill),
+    ]);
+
+    skillsUnicos.forEach(skill => {
+      if (skill.toLowerCase() === 'general') return; // Filtrar placeholder
+      const ant = sAnterior.find(s => s.skill === skill)?.promedio || 0;
+      const act = sActual.find(s => s.skill === skill)?.promedio || 0;
+
+      if (act > ant + 0.25) mejoraron.push(skill);
+      else if (Math.abs(act - ant) <= 0.25) iguales.push(skill);
+      else empeoraron.push(skill);
+    });
+
+    return { mejoraron, iguales, empeoraron };
+  }, [miComparacion]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">
@@ -283,6 +418,39 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
         </div>
       </PageHeader>
 
+      {/* Tabs de navegación */}
+      <div className="px-6 pt-4 max-w-7xl mx-auto flex gap-3">
+        <button
+          onClick={() => setSubVista('desempeno')}
+          className={`flex-1 py-3 px-5 rounded-xl font-bold text-base transition-all ${
+            subVista === 'desempeno'
+              ? 'bg-blue-600 text-white shadow-lg'
+              : 'bg-white text-slate-700 border border-stone-200 hover:border-blue-300 hover:bg-blue-50'
+          }`}
+        >
+          📊 Mi Desempeño
+        </button>
+        <button
+          onClick={() => setSubVista('formulario')}
+          className={`flex-1 py-3 px-5 rounded-xl font-bold text-base transition-all ${
+            subVista === 'formulario'
+              ? 'bg-green-600 text-white shadow-lg'
+              : 'bg-white text-slate-700 border border-stone-200 hover:border-green-300 hover:bg-green-50'
+          }`}
+        >
+          📝 Formulario
+        </button>
+      </div>
+
+      {/* Sección: Formulario */}
+      {subVista === 'formulario' && (
+        <div className="max-w-7xl mx-auto p-6">
+          <FormularioView />
+        </div>
+      )}
+
+      {/* Sección: Mi Desempeño */}
+      {subVista === 'desempeno' && (
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Cards principales */}
         <div data-onboarding="analista-tarjetas" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -328,7 +496,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
         </div>
 
         {/* Pentágonos con vista expandible */}
-        {evaluacionesPropias.length > 0 && (
+        {(skillRows.length > 0 || loadingSkills) && (
           <div data-onboarding="analista-radar" className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -347,25 +515,24 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               </button>
             </div>
 
-            {!showDetailedView ? (
+            {loadingSkills ? (
+              <div className="text-center py-12 text-stone-400">Cargando habilidades...</div>
+            ) : !showDetailedView ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Hard Skills */}
-                {radarDataAutoHard.length > 0 && (
+                {radarDataHard.length > 0 && (
                   <div onClick={() => setShowDetailedView(true)} className="cursor-pointer hover:shadow-lg transition rounded-xl p-4 border border-blue-100">
-                    <RadarChart data={radarDataAutoHard} title="Hard Skills" />
+                    <RadarChart data={radarDataHard} title="⚙️ Hard Skills" />
                   </div>
                 )}
-                {/* Soft Skills */}
-                {radarDataAutoSoft.length > 0 && (
+                {radarDataSoft.length > 0 && (
                   <div onClick={() => setShowDetailedView(true)} className="cursor-pointer hover:shadow-lg transition rounded-xl p-4 border border-purple-100">
-                    <RadarChart data={radarDataAutoSoft} title="Soft Skills" />
+                    <RadarChart data={radarDataSoft} title="🤝 Soft Skills" />
                   </div>
                 )}
               </div>
             ) : (
               <div className="space-y-8">
-                {/* Hard Skills detallado */}
-                {(radarDataAutoHard.length > 0 || radarDataJefeHard.length > 0) && (
+                {radarDataHard.length > 0 && (
                   <div>
                     <h3 className="text-lg font-bold text-blue-700 mb-4 flex items-center gap-2">
                       <div className="w-6 h-6 bg-blue-100 rounded flex items-center justify-center">
@@ -373,27 +540,13 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                         </svg>
                       </div>
-                      Hard Skills
+                      ⚙️ Hard Skills — Autoevaluación + Líder
                     </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {radarDataAutoHard.length > 0 && (
-                        <div className="bg-blue-50 rounded-xl p-4">
-                          <p className="text-sm font-semibold text-blue-700 mb-3">Mi Autoevaluación</p>
-                          <RadarChart data={radarDataAutoHard} title="" />
-                        </div>
-                      )}
-                      {radarDataJefeHard.length > 0 && (
-                        <div className="bg-orange-50 rounded-xl p-4">
-                          <p className="text-sm font-semibold text-orange-700 mb-3">Evaluación del Líder</p>
-                          <RadarChart data={radarDataJefeHard} title="" />
-                        </div>
-                      )}
-                    </div>
+                    <RadarChart data={radarDataHard} title="" />
                   </div>
                 )}
 
-                {/* Soft Skills detallado */}
-                {(radarDataAutoSoft.length > 0 || radarDataJefeSoft.length > 0) && (
+                {radarDataSoft.length > 0 && (
                   <div>
                     <h3 className="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
                       <div className="w-6 h-6 bg-purple-100 rounded flex items-center justify-center">
@@ -401,22 +554,9 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
-                      Soft Skills
+                      🤝 Soft Skills — Autoevaluación + Líder
                     </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {radarDataAutoSoft.length > 0 && (
-                        <div className="bg-blue-50 rounded-xl p-4">
-                          <p className="text-sm font-semibold text-blue-700 mb-3">Mi Autoevaluación</p>
-                          <RadarChart data={radarDataAutoSoft} title="" />
-                        </div>
-                      )}
-                      {radarDataJefeSoft.length > 0 && (
-                        <div className="bg-orange-50 rounded-xl p-4">
-                          <p className="text-sm font-semibold text-orange-700 mb-3">Evaluación del Líder</p>
-                          <RadarChart data={radarDataJefeSoft} title="" />
-                        </div>
-                      )}
-                    </div>
+                    <RadarChart data={radarDataSoft} title="" />
                   </div>
                 )}
               </div>
@@ -453,7 +593,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
             ) : (
               <div className="space-y-6">
                 {/* Banner primera evaluación */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200 p-6">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-blue-200 dark:border-blue-700 p-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                       <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -478,7 +618,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
                 {/* Radar charts (misma vista que el líder) */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {radarDataAutoHard.length > 0 && (
+                  {radarDataHard.length > 0 && (
                     <div className="bg-white rounded-xl border border-blue-100 p-4">
                       <h3 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
                         <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center">
@@ -488,10 +628,10 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                         </div>
                         Hard Skills
                       </h3>
-                      <RadarChart data={radarDataAutoHard} title="" />
+                      <RadarChart data={radarDataHard} title="" />
                     </div>
                   )}
-                  {radarDataAutoSoft.length > 0 && (
+                  {radarDataSoft.length > 0 && (
                     <div className="bg-white rounded-xl border border-purple-100 p-4">
                       <h3 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-2">
                         <div className="w-5 h-5 bg-purple-100 rounded flex items-center justify-center">
@@ -501,7 +641,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                         </div>
                         Soft Skills
                       </h3>
-                      <RadarChart data={radarDataAutoSoft} title="" />
+                      <RadarChart data={radarDataSoft} title="" />
                     </div>
                   )}
                 </div>
@@ -510,11 +650,21 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
           </div>
         )}
 
+        {/* EVOLUCIÓN DE COMPETENCIAS — usa MiDesempenoPanel compartido */}
+        {evaluacionesPropias.length > 0 && (
+          <MiDesempenoPanel
+            evaluaciones={evaluacionesPropias}
+            skillsMatrix={skillsMatrix}
+            persona={{ email: currentUser.email, nombre: currentUser.nombre, area: currentUser.area }}
+            evolutionOnly
+          />
+        )}
+
         {/* Fortalezas y Áreas de Mejora */}
         <div data-onboarding="analista-fortalezas" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Fortalezas */}
+          {/* Mis Fortalezas */}
           {analisisSkills.fortalezas.length > 0 && (
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-sm border border-green-200 p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-green-300 dark:border-green-700 p-6">
               <h3 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -539,29 +689,45 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
             </div>
           )}
 
-          {/* Áreas de Mejora */}
-          {analisisSkills.mejoras.length > 0 && (
-            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-sm border border-amber-200 p-6">
+          {/* A mejorar */}
+          {(analisisEvolucion.empeoraron.length > 0 || analisisSkills.mejoras.length > 0) && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-amber-300 dark:border-amber-700 p-6">
               <h3 className="text-lg font-bold text-amber-800 mb-4 flex items-center gap-2">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Áreas de Mejora
+                A mejorar
               </h3>
               <div className="space-y-3">
-                {analisisSkills.mejoras.map((skill, idx) => (
-                  <div key={idx} className="bg-white rounded-lg p-4 border border-amber-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-slate-900 text-sm">{skill.skill}</span>
-                      <span className="text-xs font-bold text-red-600">{skill.diferencia.toFixed(2)}</span>
+                {/* Skills que bajaron del semestre anterior */}
+                {analisisEvolucion.empeoraron.map((skill, idx) => (
+                  <div key={`down-${idx}`} className="bg-white rounded-lg p-4 border border-orange-200">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900 text-sm">{skill}</span>
+                      <span className="text-xs font-bold text-orange-600 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7" /></svg>
+                        bajó
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-stone-600">
-                      <span>Promedio: <strong className="text-orange-600">{skill.promedio}</strong></span>
-                      <span>•</span>
-                      <span>Esperado: <strong>{skill.esperado}</strong></span>
-                    </div>
+                    <p className="text-xs text-stone-500 mt-1">Redujo respecto al semestre anterior</p>
                   </div>
                 ))}
+                {/* Skills por debajo del esperado para el siguiente seniority */}
+                {analisisSkills.mejoras
+                  .filter(s => !analisisEvolucion.empeoraron.includes(s.skill))
+                  .map((skill, idx) => (
+                    <div key={`gap-${idx}`} className="bg-white rounded-lg p-4 border border-amber-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-slate-900 text-sm">{skill.skill}</span>
+                        <span className="text-xs font-bold text-red-600">{skill.diferencia.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-stone-600">
+                        <span>Promedio: <strong className="text-orange-600">{skill.promedio}</strong></span>
+                        <span>•</span>
+                        <span>Esperado: <strong>{skill.esperado}</strong></span>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           )}
@@ -580,9 +746,9 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
             </h2>
             <div className="space-y-4">
               {comentariosLider.map((com, idx) => (
-                <div key={idx} className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                  <p className="text-xs text-stone-500 mb-2">{com.fecha}</p>
-                  <p className="text-sm text-stone-700 italic">"{com.comentario}"</p>
+                <div key={idx} className="bg-blue-50 dark:bg-slate-700 rounded-lg p-4 border border-blue-100 dark:border-blue-800">
+                  <p className="text-xs text-stone-500 dark:text-slate-400 mb-2">{com.fecha}</p>
+                  <p className="text-sm text-stone-700 dark:text-slate-300 italic">"{com.comentario}"</p>
                 </div>
               ))}
             </div>
@@ -591,17 +757,18 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
 
         {/* Mensaje si no hay evaluaciones */}
         {evaluacionesPropias.length === 0 && (
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-8 text-center">
-            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-orange-200 dark:border-orange-700 p-8 text-center">
+            <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-orange-500 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <p className="text-amber-900 text-lg font-semibold mb-2">No hay evaluaciones disponibles</p>
-            <p className="text-amber-700 text-sm">Contactá a tu líder o RRHH para realizar tu evaluación de desempeño.</p>
+            <p className="text-slate-900 dark:text-slate-100 text-lg font-semibold mb-2">No hay evaluaciones disponibles</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">Contactá a tu líder o RRHH para realizar tu evaluación de desempeño.</p>
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

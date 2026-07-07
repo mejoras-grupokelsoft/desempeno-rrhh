@@ -10,8 +10,7 @@ export function crearEval(overrides: Partial<Evaluation> = {}): Evaluation {
     id: `eval-${evalCounter}`,
     fecha: '2025-06-01',
     evaluadoEmail: 'juan@test.com',
-    evaluadoNombre: 'Juan',
-    evaluadoApellido: 'Pérez',
+    evaluadoNombre: 'Juan Pérez',
     evaluadorEmail: 'jefe@test.com',
     tipoEvaluador: 'AUTO',
     skillTipo: 'HARD',
@@ -35,12 +34,12 @@ export const mockUsers: User[] = [
 
 // ============= SKILLS MATRIX =============
 export const mockSkillsMatrix: SkillMatrix[] = [
-  { seniority: 'Junior', rol: 'Analista', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 2, tipo: 'HARD' },
-  { seniority: 'Junior', rol: 'Analista', area: 'IT', skillNombre: 'React', valorEsperado: 2, tipo: 'HARD' },
-  { seniority: 'Junior', rol: 'Analista', area: 'IT', skillNombre: 'Comunicación', valorEsperado: 3, tipo: 'SOFT' },
-  { seniority: 'Semi Senior', rol: 'Analista', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 3, tipo: 'HARD' },
-  { seniority: 'Semi Senior', rol: 'Analista', area: 'IT', skillNombre: 'React', valorEsperado: 3, tipo: 'HARD' },
-  { seniority: 'Senior', rol: 'Analista', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 4, tipo: 'HARD' },
+  { seniority: 'Junior', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 2, tipo: 'HARD' },
+  { seniority: 'Junior', area: 'IT', skillNombre: 'React', valorEsperado: 2, tipo: 'HARD' },
+  { seniority: 'Junior', area: 'IT', skillNombre: 'Comunicación', valorEsperado: 3, tipo: 'SOFT' },
+  { seniority: 'Semi Senior', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 3, tipo: 'HARD' },
+  { seniority: 'Semi Senior', area: 'IT', skillNombre: 'React', valorEsperado: 3, tipo: 'HARD' },
+  { seniority: 'Senior', area: 'IT', skillNombre: 'JavaScript', valorEsperado: 4, tipo: 'HARD' },
 ];
 
 // ============= EVALUACIONES =============

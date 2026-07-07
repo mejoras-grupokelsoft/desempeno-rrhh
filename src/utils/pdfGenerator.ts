@@ -3,6 +3,34 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Evaluation, RadarDataPoint } from '../types';
 
+// Convierte el SVG del logo a PNG base64 para usar en jsPDF (alta resolución)
+async function getLogoBase64(): Promise<string | null> {
+  try {
+    const res = await fetch('/logo-kelsoft.svg');
+    if (!res.ok) return null;
+    const svgText = await res.text();
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = 4; // 4x para alta resolución
+        const canvas = document.createElement('canvas');
+        canvas.width = 483 * scale;
+        canvas.height = 99 * scale;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ============================================================
 // TIPOS
 // ============================================================
@@ -91,29 +119,73 @@ function sectionTitle(doc: jsPDF, text: string, yPos: number, margin: number, se
 }
 
 // ============================================================
+// HEADER REUTILIZABLE (aparece en todas las páginas)
+// ============================================================
+function drawHeader(doc: jsPDF, logoBase64: string | null, W: number): void {
+  const margin = 18;
+  const HEADER_H = 20;
+
+  // Fondo gris claro
+  doc.setFillColor(245, 245, 245);
+  doc.rect(0, 0, W, HEADER_H, 'F');
+
+  // Logo centrado horizontalmente en el bloque logo+texto
+  const logoW = 38;
+  const logoH = 8;
+  const totalW = logoW + 2 + 4 + 60; // logo + separador gap + text aprox
+  const startX = (W - totalW) / 2;
+
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', startX, (HEADER_H - logoH) / 2, logoW, logoH);
+  } else {
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(80, 80, 80);
+    doc.text('GRUPO KELSOFT', startX, HEADER_H / 2 + 3);
+  }
+
+  // Separador vertical
+  const sepX = startX + logoW + 4;
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.4);
+  doc.line(sepX, 4, sepX, HEADER_H - 4);
+
+  // Texto a la derecha del separador
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(60, 60, 60);
+  doc.text('Evaluaci\u00f3n de Desempe\u00f1o', sepX + 4, HEADER_H / 2 + 3);
+
+  // Línea horizontal inferior del header
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(0, HEADER_H, W, HEADER_H);
+
+  // Reset
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+}
+
+// ============================================================
 // GENERADOR PRINCIPAL — 9 SECCIONES (spec RRHH)
 // ============================================================
 
-export function generarPDFIndividual(data: PDFReporteData): jsPDF {
+export async function generarPDFIndividual(data: PDFReporteData): Promise<jsPDF> {
   const doc = new jsPDF();
   const W = doc.internal.pageSize.getWidth();
   const margin = 18;
   let y = 16;
 
-  // ===== HEADER =====
-  doc.setFillColor(...BLUE);
-  doc.rect(margin, y, 32, 11, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text('GRUPO', margin + 3, y + 5);
-  doc.text('KELSOFT', margin + 3, y + 9.5);
-  doc.setTextColor(0, 0, 0);
+  // ===== HEADER (página 1) =====
+  const logoBase64 = await getLogoBase64();
+  drawHeader(doc, logoBase64, W);
+  y = 26;
 
-  doc.setFontSize(19);
+  // Título de la página
+  doc.setTextColor(...BLUE);
+  doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('Reporte de Evaluación de Desempeño', W / 2, y + 7, { align: 'center' });
-  y += 18;
+  doc.text('Reporte de Evaluaci\u00f3n de Desempe\u00f1o', W / 2, y, { align: 'center' });
+  y += 8;
 
   doc.setDrawColor(...BLUE);
   doc.setLineWidth(0.6);
@@ -401,7 +473,7 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   if (data.evolucion) {
     const { promedioAnterior, promedioActual, tendencia } = data.evolucion;
     const diff = promedioActual - promedioAnterior;
-    const tendenciaLabel = tendencia === 'mejora' ? '▲ Mejora' : tendencia === 'descenso' ? '▼ Descenso' : '= Estable';
+    const tendenciaLabel = tendencia === 'mejora' ? '+ Mejora' : tendencia === 'descenso' ? '- Descenso' : '= Estable';
     const tendenciaColor = tendencia === 'mejora' ? GREEN : tendencia === 'descenso' ? RED : GRAY;
 
     y = checkPageBreak(doc, y, 60);
@@ -490,45 +562,70 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
   // ================================================================
   y = sectionTitle(doc, 'Seniority / Nivel del Rol', y, margin, 8);
 
-  const seniorityLevels = ['Trainee', 'Junior', 'Semi Senior', 'Senior'];
-  const idxEsperado = seniorityLevels.indexOf(data.seniorityEsperado);
-  const idxAlcanzado = seniorityLevels.indexOf(data.seniorityAlcanzado);
-  const brechaSeniority = idxAlcanzado - idxEsperado;
-  const brechaTexto = brechaSeniority > 0
-    ? 'Subió de seniority'
-    : brechaSeniority === 0
-      ? 'Se mantiene en el mismo seniority'
-      : 'Bajó de seniority';
-  const brechaColor = brechaSeniority > 0 ? GREEN : brechaSeniority === 0 ? BLUE : RED;
+  if (data.evolucion) {
+    // Segunda evaluación en adelante → mostrar comparación
+    const seniorityLevels = ['Trainee', 'Junior', 'Semi Senior', 'Senior'];
+    const idxEsperado = seniorityLevels.indexOf(data.seniorityEsperado);
+    const idxAlcanzado = seniorityLevels.indexOf(data.seniorityAlcanzado);
+    const brechaSeniority = idxAlcanzado - idxEsperado;
+    const brechaTexto = brechaSeniority > 0
+      ? 'Subió de nivel'
+      : brechaSeniority === 0
+        ? 'Se mantiene en el mismo nivel'
+        : 'Bajó de nivel';
+    const brechaColor = brechaSeniority > 0 ? GREEN : brechaSeniority === 0 ? BLUE : RED;
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Métrica', 'Valor']],
-    body: [
-      ['Seniority Alcanzado', data.seniorityAlcanzado],
-      ['Seniority Anterior', data.seniorityEsperado],
-      ['Brecha', brechaTexto],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [...BLUE], textColor: 255, fontSize: 9 },
-    bodyStyles: { fontSize: 9 },
-    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 70 } },
-    margin: { left: margin, right: margin },
-    didParseCell: (hookData) => {
-      if (hookData.row.index === 2 && hookData.column.index === 1 && hookData.section === 'body') {
-        hookData.cell.styles.textColor = [...brechaColor];
-        hookData.cell.styles.fontStyle = 'bold';
-      }
-    },
-  });
-  y = (doc as any).lastAutoTable.finalY + 6;
+    autoTable(doc, {
+      startY: y,
+      head: [['Métrica', 'Valor']],
+      body: [
+        ['Seniority Alcanzado (período actual)', data.seniorityAlcanzado],
+        ['Seniority Período Anterior', data.seniorityEsperado !== 'Junior' ? data.seniorityEsperado : 'Ver período anterior'],
+        ['Variación', brechaTexto],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [...BLUE], textColor: 255, fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } },
+      margin: { left: margin, right: margin },
+      didParseCell: (hookData) => {
+        if (hookData.row.index === 2 && hookData.column.index === 1 && hookData.section === 'body') {
+          hookData.cell.styles.textColor = [...brechaColor];
+          hookData.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
 
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(...GRAY);
-  y = checkPageBreak(doc, y, 10);
-  doc.text('Comparación entre el seniority alcanzado y el nivel anterior.', margin, y);
-  y += 8;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...GRAY);
+    y = checkPageBreak(doc, y, 10);
+    doc.text('Comparación entre el seniority del período actual y el período anterior.', margin, y);
+    y += 8;
+  } else {
+    // Primera evaluación → solo mostrar el seniority determinado
+    autoTable(doc, {
+      startY: y,
+      head: [['Métrica', 'Valor']],
+      body: [
+        ['Seniority Determinado', data.seniorityAlcanzado],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [...BLUE], textColor: 255, fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 80 } },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...GRAY);
+    y = checkPageBreak(doc, y, 10);
+    doc.text('Primera evaluación — la comparación de nivel se mostrará a partir del siguiente período.', margin, y);
+    y += 8;
+  }
 
   // ================================================================
   // 9. COMENTARIOS
@@ -576,10 +673,13 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
     y += lines.length * 5 + 5;
   }
 
-  // ===== FOOTER EN TODAS LAS PÁGINAS =====
+  // ===== HEADER Y FOOTER EN TODAS LAS PÁGINAS =====
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    // Header en cada página
+    drawHeader(doc, logoBase64, W);
+    // Footer
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text(
@@ -602,98 +702,215 @@ export function generarPDFIndividual(data: PDFReporteData): jsPDF {
 /**
  * Genera PDF consolidado de área
  */
-export function generarPDFConsolidado(
+export async function generarPDFConsolidado(
   area: string,
   periodo: string,
   evaluaciones: Evaluation[],
   promedioArea: number,
-  totalEvaluados: number
-): jsPDF {
+  totalEvaluados: number,
+  resultados: any[] = []
+): Promise<jsPDF> {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  let yPos = 20;
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const margin = 18;
+  const BLUE: [number, number, number] = [30, 64, 175];
+  const GRAY: [number, number, number] = [100, 100, 100];
 
-  // ===== HEADER =====
-  doc.setFillColor(30, 64, 175);
-  doc.rect(margin, yPos, 30, 10, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text('GRUPO', margin + 3, yPos + 7);
-  doc.text('KELSOFT', margin + 15, yPos + 7);
-  doc.setTextColor(0, 0, 0);
+  // Logo cargado una sola vez — se reutiliza en header de cada página
+  const logoBase64 = await getLogoBase64();
 
-  doc.setFontSize(18);
+  const addFooter = () => {
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      // Header en cada página
+      drawHeader(doc, logoBase64, W);
+      // Footer
+      doc.setFontSize(8);
+      doc.setTextColor(...GRAY);
+      doc.text(
+        `Generado el ${new Date().toLocaleDateString('es-AR')} · Página ${i} de ${pages}`,
+        W / 2, H - 8, { align: 'center' }
+      );
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(margin, H - 12, W - margin, H - 12);
+    }
+  };
+
+  let y = 14;
+
+  // ===== HEADER CONSOLIDADO (página 1) =====
+  drawHeader(doc, logoBase64, W);
+  y = 26;
+
+  // Título de la página
+  doc.setTextColor(...BLUE);
+  doc.setFontSize(15);
   doc.setFont('helvetica', 'bold');
-  doc.text('Reporte Consolidado de Evaluaciones', pageWidth / 2, yPos + 7, { align: 'center' });
-  yPos += 20;
+  doc.text('Reporte Consolidado de Evaluaciones', W / 2, y, { align: 'center' });
+  y += 8;
 
-  doc.setDrawColor(30, 64, 175);
+  doc.setDrawColor(...BLUE);
   doc.setLineWidth(0.5);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 10;
+  doc.line(margin, y, W - margin, y);
+  y += 8;
 
-  // ===== RESUMEN EJECUTIVO =====
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 64, 175);
-  doc.text('Resumen Ejecutivo', margin, yPos);
-  yPos += 8;
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
-
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Métrica', 'Valor']],
-    body: [
-      ['Área', area || 'Todas las áreas'],
-      ['Período', periodo],
-      ['Total de Evaluados', totalEvaluados.toString()],
-      ['Promedio General del Área', promedioArea.toFixed(2) + ' / 4.0']
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-    styles: { fontSize: 10 },
-    margin: { left: margin, right: margin }
-  });
-
-  yPos = (doc as any).lastAutoTable.finalY + 15;
-
-  // ===== DETALLES =====
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 64, 175);
-  doc.text('Detalle de Evaluaciones', margin, yPos);
-  yPos += 8;
-
+  // ===== INFO GENERAL =====
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text('Este reporte contiene información agregada del período seleccionado.', margin, yPos);
-  doc.text('Para ver detalles individuales, genere PDFs por evaluado desde la vista individual.', margin, yPos + 5);
-  yPos += 15;
+  doc.setTextColor(...GRAY);
+  doc.text(`Área: ${area}   ·   Período: ${periodo}   ·   Total evaluados: ${totalEvaluados}   ·   Promedio general: ${promedioArea.toFixed(2)}`, margin, y);
+  y += 10;
 
-  // Resumen de evaluaciones por área
-  const evaluadosUnicos = new Set(evaluaciones.map(e => e.evaluadoEmail)).size;
-  doc.setFontSize(10);
-  doc.text(`Total de evaluaciones registradas: ${evaluaciones.length}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Evaluados únicos: ${evaluadosUnicos}`, margin, yPos);
+  // ===== TABLA RESUMEN POR PERSONA =====
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE);
+  doc.text('Resumen por persona', margin, y);
+  y += 5;
 
-  // ===== FOOTER =====
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      `Documento generado el ${new Date().toLocaleDateString('es-AR')} - Página ${i} de ${pageCount}`,
-      pageWidth / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
+  // Agrupar por área
+  const porArea = new Map<string, any[]>();
+  for (const p of resultados) {
+    const areaKey = p.area || 'Sin área';
+    if (!porArea.has(areaKey)) porArea.set(areaKey, []);
+    porArea.get(areaKey)!.push(p);
   }
 
+  for (const [areaNombre, personas] of Array.from(porArea.entries()).sort()) {
+    // Subtítulo de área
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...BLUE);
+    doc.text(`[ ${areaNombre} ]`, margin, y + 4);
+    y += 8;
+
+    const promedioAreaLocal = personas.reduce((s, p) => s + (p.promedioFinal || 0), 0) / personas.length;
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Nombre', 'Rol', 'Auto', 'Jefe', 'Promedio', 'Seniority', 'Estado']],
+      body: personas.map(p => {
+        const auto = typeof p.promedioAuto === 'number' ? p.promedioAuto.toFixed(2) : '-';
+        const jefe = typeof p.promedioJefe === 'number' ? p.promedioJefe.toFixed(2) : '-';
+        const prom = typeof p.promedioFinal === 'number' ? p.promedioFinal.toFixed(2) : '-';
+        const diff = p.promedioFinal - promedioAreaLocal;
+        const estado = diff > 0.3 ? '+ Sobre promedio' : diff < -0.3 ? '- Bajo promedio' : '= En promedio';
+        return [
+          p.nombre || p.evaluadoNombre || '-',
+          p.rol || '-',
+          auto,
+          jefe,
+          prom,
+          p.seniorityAlcanzado || '-',
+          estado,
+        ];
+      }),
+      theme: 'striped',
+      headStyles: { fillColor: BLUE, textColor: 255, fontSize: 8, fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 42 },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 14, halign: 'center' },
+        3: { cellWidth: 14, halign: 'center' },
+        4: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+        5: { cellWidth: 24 },
+        6: { cellWidth: 28 },
+      },
+      margin: { left: margin, right: margin },
+      didParseCell: (data) => {
+        if (data.column.index === 6 && data.section === 'body') {
+          const val = data.cell.raw as string;
+          if (val.startsWith('+')) data.cell.styles.textColor = [22, 101, 52];
+          else if (val.startsWith('-')) data.cell.styles.textColor = [185, 28, 28];
+          else data.cell.styles.textColor = [80, 80, 80];
+        }
+      },
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 12;
+    if (y > H - 40) { doc.addPage(); y = 20; }
+  }
+
+  // ===== OPORTUNIDADES DE MEJORA POR AREA =====
+  if (evaluaciones.length > 0) {
+    if (y > H - 60) { doc.addPage(); y = 20; }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...BLUE);
+    doc.text('Oportunidades de mejora por area', margin, y);
+    y += 6;
+
+    // Agrupar evaluaciones por area
+    const evalsPorArea = new Map<string, typeof evaluaciones>();
+    for (const e of evaluaciones) {
+      if (!e.skillNombre || e.skillNombre === 'general') continue;
+      const a = e.area || 'Sin area';
+      if (!evalsPorArea.has(a)) evalsPorArea.set(a, []);
+      evalsPorArea.get(a)!.push(e);
+    }
+
+    for (const [areaNombre, evalsArea] of Array.from(evalsPorArea.entries()).sort()) {
+      if (y > H - 50) { doc.addPage(); y = 20; }
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BLUE);
+      doc.text(`[ ${areaNombre} ]`, margin, y + 4);
+      y += 7;
+
+      const skillMapArea = new Map<string, { sum: number; count: number; tipo: string }>();
+      for (const e of evalsArea) {
+        if (!skillMapArea.has(e.skillNombre)) skillMapArea.set(e.skillNombre, { sum: 0, count: 0, tipo: e.skillTipo || '' });
+        const d = skillMapArea.get(e.skillNombre)!;
+        d.sum += e.puntaje;
+        d.count += 1;
+      }
+
+      const skillsOrdenadas = Array.from(skillMapArea.entries())
+        .map(([nombre, d]) => ({ nombre, promedio: d.sum / d.count, tipo: d.tipo }))
+        .filter(s => s.promedio < 3) // Solo mostrar las que necesitan mejora
+        .sort((a, b) => a.promedio - b.promedio)
+        .slice(0, 5);
+
+      if (skillsOrdenadas.length === 0) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRAY);
+        doc.text('Sin oportunidades identificadas para esta area.', margin + 5, y);
+        y += 6;
+        continue;
+      }
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Habilidad', 'Tipo', 'Promedio', 'Brecha']],
+        body: skillsOrdenadas.map(s => [
+          s.nombre,
+          s.tipo,
+          s.promedio.toFixed(2),
+          s.promedio < 2 ? 'Alta' : 'Media',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [185, 28, 28], textColor: 255, fontSize: 7, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 16, halign: 'center' },
+          2: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+          3: { cellWidth: 20, halign: 'center' },
+        },
+        margin: { left: margin + 5, right: margin },
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+  }
+
+  addFooter();
   return doc;
 }

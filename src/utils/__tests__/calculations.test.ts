@@ -76,27 +76,27 @@ describe('calcularPromedio', () => {
 // =====================================================================
 describe('obtenerValorEsperado', () => {
   it('encuentra valor esperado en la matriz', () => {
-    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Junior', 'Analista', 'IT')).toBe(2);
+    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Junior', 'IT')).toBe(2);
   });
 
   it('encuentra valor para Semi Senior', () => {
-    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Semi Senior', 'Analista', 'IT')).toBe(3);
+    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Semi Senior', 'IT')).toBe(3);
   });
 
   it('retorna 0 si no encuentra la skill', () => {
-    expect(obtenerValorEsperado(mockSkillsMatrix, 'Python', 'Junior', 'Analista', 'IT')).toBe(0);
+    expect(obtenerValorEsperado(mockSkillsMatrix, 'Python', 'Junior', 'IT')).toBe(0);
   });
 
   it('retorna 0 si no encuentra el seniority', () => {
-    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Trainee', 'Analista', 'IT')).toBe(0);
+    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Trainee', 'IT')).toBe(0);
   });
 
   it('retorna 0 si no encuentra el área', () => {
-    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Junior', 'Analista', 'Ventas')).toBe(0);
+    expect(obtenerValorEsperado(mockSkillsMatrix, 'JavaScript', 'Junior', 'Ventas')).toBe(0);
   });
 
   it('retorna 0 con matriz vacía', () => {
-    expect(obtenerValorEsperado([], 'JavaScript', 'Junior', 'Analista', 'IT')).toBe(0);
+    expect(obtenerValorEsperado([], 'JavaScript', 'Junior', 'IT')).toBe(0);
   });
 });
 
@@ -105,7 +105,7 @@ describe('obtenerValorEsperado', () => {
 // =====================================================================
 describe('transformarARadarData', () => {
   it('Auto > Jefe → usa jefe (auto=4, jefe=3 → 3)', () => {
-    const result = transformarARadarData(evalAutoAltoJefeBajo, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalAutoAltoJefeBajo, mockSkillsMatrix, 'Junior', 'IT');
     expect(result).toHaveLength(1);
     expect(result[0].auto).toBe(4);
     expect(result[0].jefe).toBe(3);
@@ -114,7 +114,7 @@ describe('transformarARadarData', () => {
   });
 
   it('Auto < Jefe → usa promedio (auto=2, jefe=4 → 3)', () => {
-    const result = transformarARadarData(evalAutoBajoJefeAlto, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalAutoBajoJefeAlto, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].auto).toBe(2);
     expect(result[0].jefe).toBe(4);
     // min((2+4)/2, 4) = min(3, 4) = 3
@@ -122,32 +122,32 @@ describe('transformarARadarData', () => {
   });
 
   it('Auto = Jefe → usa ambos igualmente (auto=3, jefe=3 → 3)', () => {
-    const result = transformarARadarData(evalIguales, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalIguales, mockSkillsMatrix, 'Junior', 'IT');
     // min((3+3)/2, 3) = min(3, 3) = 3
     expect(result[0].promedio).toBe(3);
   });
 
   it('Solo Auto → usa auto directamente', () => {
-    const result = transformarARadarData(evalSoloAuto, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalSoloAuto, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].auto).toBe(4);
     expect(result[0].jefe).toBe(0);
     expect(result[0].promedio).toBe(4); // fallback: auto
   });
 
   it('Solo Jefe → usa jefe directamente', () => {
-    const result = transformarARadarData(evalSoloJefe, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalSoloJefe, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].auto).toBe(0);
     expect(result[0].jefe).toBe(3);
     expect(result[0].promedio).toBe(3); // fallback: jefe
   });
 
   it('incluye valor esperado de la skills matrix', () => {
-    const result = transformarARadarData(evalAutoAltoJefeBajo, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalAutoAltoJefeBajo, mockSkillsMatrix, 'Junior', 'IT');
     expect(result[0].esperado).toBe(2); // Junior JS en IT = 2
   });
 
   it('maneja múltiples skills correctamente', () => {
-    const result = transformarARadarData(evalMultiSkill, mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData(evalMultiSkill, mockSkillsMatrix, 'Junior', 'IT');
     expect(result.length).toBeGreaterThanOrEqual(3);
 
     const js = result.find(r => r.skill === 'JavaScript')!;
@@ -160,7 +160,7 @@ describe('transformarARadarData', () => {
   });
 
   it('retorna array vacío sin evaluaciones', () => {
-    const result = transformarARadarData([], mockSkillsMatrix, 'Junior', 'Analista', 'IT');
+    const result = transformarARadarData([], mockSkillsMatrix, 'Junior', 'IT');
     expect(result).toEqual([]);
   });
 });

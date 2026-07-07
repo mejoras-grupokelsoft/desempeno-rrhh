@@ -143,7 +143,7 @@ export function generarCuerpoEmail(
           Saludos,
         </p>
         <p style="color: #1e40af; font-size: 15px; line-height: 1.6; margin: 0; font-weight: 600;">
-          Equipo de Capital Humano KELSOFT
+          Capital Humano — capital.humano@grupokelsoft.com
         </p>
       </div>
       
@@ -157,7 +157,9 @@ export function generarCuerpoEmail(
 }
 
 /**
- * Envía el PDF por email a través de Google Apps Script
+ * Envía el PDF por email.
+ * Usa VITE_GOOGLE_SCRIPT_URL si está configurada (Google Apps Script legacy).
+ * Si no está configurada, retorna un error indicativo.
  */
 export async function enviarEmailConPDF(request: EmailRequest): Promise<EmailResponse> {
   const apiUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
@@ -165,7 +167,7 @@ export async function enviarEmailConPDF(request: EmailRequest): Promise<EmailRes
   if (!apiUrl) {
     return {
       success: false,
-      message: 'VITE_GOOGLE_SCRIPT_URL no está configurada en .env',
+      message: 'No hay servicio de email configurado. Configurá VITE_GOOGLE_SCRIPT_URL en .env o conectá un servicio de email.',
     };
   }
 
@@ -173,10 +175,12 @@ export async function enviarEmailConPDF(request: EmailRequest): Promise<EmailRes
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain', // Apps Script requiere text/plain para CORS
+        'Content-Type': 'text/plain',
       },
       body: JSON.stringify({
         action: 'sendEmail',
+        from: 'capital.humano@grupokelsoft.com',
+        fromName: 'Capital Humano Kelsoft',
         destinatarios: request.destinatarios,
         asunto: request.asunto,
         cuerpoHTML: request.cuerpoHTML,

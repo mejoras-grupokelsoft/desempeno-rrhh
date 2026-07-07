@@ -47,7 +47,7 @@ export function getUniqueEvaluados(evaluations: Evaluation[]): Array<{
   
   evaluations.forEach((e) => {
     if (!map.has(e.evaluadoEmail)) {
-      map.set(e.evaluadoEmail, `${e.evaluadoNombre} ${e.evaluadoApellido || ''}`.trim());
+      map.set(e.evaluadoEmail, e.evaluadoNombre);
     }
   });
 

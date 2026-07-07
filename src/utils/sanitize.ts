@@ -1,6 +1,17 @@
 // src/utils/sanitize.ts
 
 /**
+ * Normaliza texto: convierte a minúsculas y elimina acentos/diacríticos
+ * Útil para búsquedas insensibles a acentos (ej: "café" = "cafe")
+ */
+export function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
  * Sanitiza texto plano: elimina tags HTML/script y caracteres peligrosos
  * Usar en comentarios, nombres, etc.
  */

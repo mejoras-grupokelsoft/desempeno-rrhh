@@ -1,26 +1,19 @@
-// src/context/AppContext.tsx
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { User, Evaluation, SkillMatrix, ApiResponse, UserRole } from '../types';
+import type { User, Evaluation, SkillMatrix } from '../types';
 import { logger } from '../utils/sanitize';
-import { googleLogout } from '@react-oauth/google';
+import { fetchUsers, fetchAllEvaluations, fetchSkillsMatrix } from '../lib/supabaseQueries';
+import { adaptEvaluations, adaptSkillsMatrix } from '../lib/adapters';
+import { supabase } from '../lib/supabaseClient';
 
 // ── Constantes de sesión ──────────────────────────────────────────────
 const SESSION_KEY = 'currentUser';
-const SESSION_TS_KEY = 'sessionTimestamp';
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
-
-/** Verifica si la sesión almacenada expiró */
-function isSessionExpired(): boolean {
-  const ts = localStorage.getItem(SESSION_TS_KEY);
-  if (!ts) return true;
-  return Date.now() - Number(ts) > SESSION_TTL_MS;
-}
+const SESSION_TS_KEY = 'sessionTs';
+const DEFAULT_DISPLAY_PERIODO = '2026-S2'; // Período actual para display
 
 /** Limpia todos los datos de sesión del localStorage */
 function clearSession(): void {
   localStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(SESSION_TS_KEY);
   localStorage.removeItem('lastSelectedEmail');
   localStorage.removeItem('lastSelectedArea');
   sessionStorage.clear();
@@ -33,12 +26,13 @@ interface AppContextType {
   currentUser: User | null;
   loading: boolean;
   error: string | null;
+  currentPeriodo: string;
   setCurrentUser: (user: User | null) => void;
   logout: () => void;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
@@ -48,13 +42,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar datos del API al montar
+  // Cargar datos de Supabase al montar
   useEffect(() => {
     fetchData();
     loadUserFromStorage();
+
+    // Escuchar cambios de sesión de Supabase Auth
+    // Esto es lo que permite que RLS funcione: cuando hay sesión real, el JWT se adjunta automáticamente
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        // Si Supabase cierra sesión, limpiar también el localStorage
+        clearSession();
+        setCurrentUser(null);
+      }
+      // Si hay sesión, no hacemos nada extra — el usuario ya quedó seteado por handleSetCurrentUser
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Validar usuario almacenado contra whitelist cuando llegan datos del API
+  // Validar usuario almacenado contra whitelist cuando llegan datos de Supabase
   useEffect(() => {
     if (currentUser && users.length > 0) {
       const updatedUser = users.find(
@@ -79,55 +86,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const apiUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
       
-      if (!apiUrl) {
-        throw new Error('VITE_GOOGLE_SCRIPT_URL no está configurada en .env');
-      }
-
-      // Agregar timestamp para evitar caché de Google Apps Script
-      const cacheBuster = `?t=${Date.now()}`;
-      const fullUrl = apiUrl + cacheBuster;
-
-      const response = await fetch(fullUrl);
+      // Fetch desde Supabase
+      const usersData = await fetchUsers();
+      const evaluationsDataRaw = await fetchAllEvaluations();
+      const skillsMatrixDataRaw = await fetchSkillsMatrix();
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data: ApiResponse = await response.json();
-
-      if (data.error) {
-        throw new Error(data.message || 'Error desconocido del servidor');
-      }
-
-      // Limpiar espacios extras en roles y áreas
-      const cleanedUsers = (data.users || []).map(u => ({
-        ...u,
-        rol: u.rol.trim() as UserRole,
-        area: u.area.trim()
-      }));
+      // Adaptar datos de Supabase a formato interno (camelCase)
+      const evaluationsData = adaptEvaluations(evaluationsDataRaw);
+      const skillsMatrixData = adaptSkillsMatrix(skillsMatrixDataRaw);
       
-      setUsers(cleanedUsers);
-      setEvaluations(data.evaluations || []);
-      setSkillsMatrix(data.skills_matrix || []);
+      setUsers(usersData);
+      setEvaluations(evaluationsData);
+      setSkillsMatrix(skillsMatrixData);
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al cargar datos';
+      const message = err instanceof Error ? err.message : 'Error al cargar datos desde Supabase';
       setError(message);
-      logger.error('Error fetching data:', err);
+      logger.error('Error fetching data from Supabase:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const loadUserFromStorage = () => {
-    // Verificar expiración de sesión (24h TTL)
-    if (isSessionExpired()) {
-      clearSession();
-      return;
-    }
-
     const stored = localStorage.getItem(SESSION_KEY);
     if (stored) {
       try {
@@ -154,9 +136,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const handleLogout = useCallback(() => {
     setCurrentUser(null);
-    clearSession();
-    // Revocar sesión de Google OAuth
-    try { googleLogout(); } catch { /* silently ignore */ }
+    supabase.auth.signOut(); // Cierra sesión en Supabase Auth → invalida el JWT → RLS queda activo
   }, []);
 
   return (
@@ -168,6 +148,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentUser,
         loading,
         error,
+        currentPeriodo: DEFAULT_DISPLAY_PERIODO,
         setCurrentUser: handleSetCurrentUser,
         logout: handleLogout,
         refetch: fetchData,

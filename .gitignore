@@ -25,4 +25,37 @@ CHECKLIST_LOCAL.md
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets y entorno
 .env
+.env.local
+.env.*.local
+*.md
+# Documentación interna (no subir al repo público)
+GEMINI.md
+!README.md
+
+# CSVs de datos reales de empleados (privados)
+staff.csv
+"toda empresa.csv"
+
+# Scripts de seed/migración (solo uso local)
+src/scripts/
+*.mjs
+toda empresa.csv
+Formulario de evaluación de desempeño - Analistas.csv
+Formulario de evaluación de desempeño - Lideres.csv
+"Formulario de evaluación de desempeño - Analistas.csv"
+"Formulario de evaluación de desempeño - Lideres.csv"
+"Formulario de evaluación de desempeño - preguntas.csv"
+"Formulario de evaluación de desempeño - Habilidades (1).csv"
+Formulario de evaluación de desempeño - preguntas.csv
+Formulario de evaluación de desempeño - Habilidades (1).csv
+
+# Scripts temporales de seed/debug en raíz
+*.mjs
+seed-*.ts
+debug-*.ts
+
+# Logs de seed
+seed-prog-log.txt

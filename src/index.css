@@ -1,24 +1,106 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background-color: #fafaf9;
+/* ─────────────────────────────────────────────
+   Design Tokens — Light Mode
+   ───────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --clr-bg:        248 250 252;   /* #F8FAFC */
+  --clr-surface:   255 255 255;   /* #FFFFFF */
+  --clr-surface2:  241 245 249;   /* #F1F5F9 */
+  /* Borders */
+  --clr-border:    226 232 240;   /* #E2E8F0 */
+  /* Text */
+  --clr-t1:        15  23  42;    /* #0F172A */
+  --clr-t2:        100 116 139;   /* #64748B */
+  --clr-t3:        148 163 184;   /* #94A3B8 */
+  /* Brand palette */
+  --clr-indigo:    63  81  181;   /* #3F51B5 */
+  --clr-indigo-dk: 48  63  159;   /* #303F9F */
+  --clr-teal:      0   150 136;   /* #009688 */
+  --clr-amber:     245 158 11;    /* #F59E0B */
+  --clr-night:     30  41  59;    /* #1E293B */
+  /* Shadows */
+  --shadow-card:    0 4px 6px -1px rgb(15 23 42 / 0.05), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --shadow-card-lg: 0 10px 15px -3px rgb(15 23 42 / 0.08), 0 4px 6px -4px rgb(15 23 42 / 0.04);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ─────────────────────────────────────────────
+   Design Tokens — Dark Mode
+   ───────────────────────────────────────────── */
+.dark {
+  --clr-bg:        15  23  42;    /* #0F172A */
+  --clr-surface:   30  41  59;    /* #1E293B */
+  --clr-surface2:  51  65  85;    /* #334155 */
+  --clr-surface3:  71  85  105;   /* #475569 — para botones elevados */
+  --clr-border:    51  65  85;    /* #334155 */
+  --clr-t1:        241 245 249;   /* #F1F5F9 */
+  --clr-t2:        148 163 184;   /* #94A3B8 */
+  --clr-t3:        148 163 184;   /* igual a t2 para mejor legibilidad */
+  --shadow-card:    0 4px 6px -1px rgb(0 0 0 / 0.30), 0 2px 4px -2px rgb(0 0 0 / 0.20);
+  --shadow-card-lg: 0 10px 15px -3px rgb(0 0 0 / 0.40), 0 4px 6px -4px rgb(0 0 0 / 0.30);
+
+  /* ── Fondos de accent (reemplaza -50 y -100) ─────────────── */
+  --clr-blue-bg:    rgb(30 58 138 / 0.35);
+  --clr-blue-bg2:   rgb(30 58 138 / 0.50);
+  --clr-orange-bg:  rgb(120 53 15 / 0.28);
+  --clr-orange-bg2: rgb(120 53 15 / 0.42);
+  --clr-red-bg:     rgb(127 29 29 / 0.28);
+  --clr-red-bg2:    rgb(127 29 29 / 0.42);
+  --clr-green-bg:   rgb(20 83 45 / 0.28);
+  --clr-green-bg2:  rgb(20 83 45 / 0.42);
+  --clr-purple-bg:  rgb(59 7 100 / 0.28);
+  --clr-purple-bg2: rgb(59 7 100 / 0.42);
+  --clr-indigo-bg:  rgb(49 46 129 / 0.30);
+  --clr-indigo-bg2: rgb(49 46 129 / 0.48);
+  --clr-yellow-bg:  rgb(113 63 18 / 0.28);
+  --clr-yellow-bg2: rgb(113 63 18 / 0.42);
+
+  /* ── Bordes de accent ─────────────────────────────────────── */
+  --clr-blue-border:   rgb(30 58 138 / 0.55);
+  --clr-orange-border: rgb(146 64 14 / 0.50);
+  --clr-red-border:    rgb(127 29 29 / 0.55);
+  --clr-purple-border: rgb(88 28 135 / 0.55);
+  --clr-indigo-border: rgb(49 46 129 / 0.55);
+
+  /* ── Texto de accent ─────────────────────────────────────── */
+  --clr-blue-text:   rgb(191 219 254);   /* blue-200   */
+  --clr-blue-text2:  rgb(147 197 253);   /* blue-300   */
+  --clr-amber-text:  rgb(253 211 77);    /* amber-300  */
+  --clr-orange-text: rgb(251 146 60);    /* orange-400 */
+  --clr-red-text:    rgb(252 165 165);   /* red-300    */
+  --clr-green-text:  rgb(134 239 172);   /* green-300  */
+  --clr-purple-text: rgb(216 180 254);   /* purple-300 */
+  --clr-indigo-text: rgb(165 180 252);   /* indigo-300 */
+  --clr-yellow-text: rgb(253 224 71);    /* yellow-300 */
+
+  /* ── Gradients stops ─────────────────────────────────────── */
+  --clr-grad-from: rgb(30 41 59);
+  --clr-grad-to:   rgb(51 65 85);
 }
 
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ─────────────────────────────────────────────
+   Base
+   ───────────────────────────────────────────── */
+@layer base {
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: rgb(var(--clr-bg));
+    color: rgb(var(--clr-t1));
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 #root {
@@ -26,18 +108,244 @@ body {
   min-height: 100vh;
 }
 
-/* Animación para el panel lateral */
+/* ─────────────────────────────────────────────
+   Animations
+   ───────────────────────────────────────────── */
 @keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
 .animate-slide-in {
   animation: slideInRight 0.3s ease-out;
 }
+
+/* ─────────────────────────────────────────────
+   Dark Mode — override hardcoded Tailwind classes
+   Permite que componentes con bg-white, text-slate-900,
+   etc. respondan al modo oscuro sin reescribir cada archivo.
+   ───────────────────────────────────────────── */
+
+/* Fondos */
+.dark .bg-white                { background-color: rgb(var(--clr-surface)) !important; }
+.dark .bg-stone-50,
+.dark .bg-slate-50             { background-color: rgb(var(--clr-surface)) !important; }
+.dark .bg-stone-100,
+.dark .bg-slate-100,
+.dark .bg-gray-100             { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .bg-stone-200,
+.dark .bg-slate-200,
+.dark .bg-gray-200             { background-color: rgb(71 85 105) !important; }
+
+/* Botones con bg-gray/slate/stone -100 o -200: borde visible en dark */
+.dark button.bg-gray-200,
+.dark button.bg-slate-200,
+.dark button.bg-stone-200,
+.dark button.bg-gray-100,
+.dark button.bg-slate-100,
+.dark button.bg-stone-100      {
+  box-shadow: 0 0 0 1px rgb(var(--clr-t3) / 0.35) !important;
+}
+
+/* Texto oscuro → claro */
+.dark .text-slate-900,
+.dark .text-gray-900,
+.dark .text-stone-900,
+.dark .text-slate-800,
+.dark .text-gray-800,
+.dark .text-stone-800          { color: rgb(var(--clr-t1)) !important; }
+
+.dark .text-slate-700,
+.dark .text-gray-700,
+.dark .text-stone-700          { color: rgb(var(--clr-t1)) !important; }  /* elevado a t1 para mejor legibilidad */
+
+.dark .text-slate-600,
+.dark .text-gray-600,
+.dark .text-stone-600          { color: rgb(var(--clr-t2)) !important; }
+
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-stone-500,
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-stone-400          { color: rgb(var(--clr-t3)) !important; }
+
+/* Bordes */
+.dark .border-stone-100,
+.dark .border-stone-200,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-gray-100,
+.dark .border-gray-200         { border-color: rgb(var(--clr-border)) !important; }
+
+/* Inputs y selects */
+.dark input:not([type=range]),
+.dark select,
+.dark textarea                 {
+  background-color: rgb(var(--clr-surface2)) !important;
+  color: rgb(var(--clr-t1)) !important;
+  border-color: rgb(var(--clr-border)) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder    { color: rgb(var(--clr-t3)) !important; }
+
+/* Fondos amber/orange/gray/blue/red/indigo */
+.dark .bg-gray-50                { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .bg-slate-50               { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .bg-slate-100              { background-color: rgb(var(--clr-surface2) / 0.7) !important; }
+.dark .bg-slate-200              { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .bg-amber-50               { background-color: var(--clr-orange-bg) !important; }
+.dark .bg-orange-50              { background-color: var(--clr-orange-bg) !important; }
+.dark .bg-orange-100             { background-color: var(--clr-orange-bg2) !important; }
+.dark .bg-blue-50                { background-color: var(--clr-blue-bg) !important; }
+.dark .bg-blue-100               { background-color: var(--clr-blue-bg2) !important; }
+.dark .bg-indigo-50              { background-color: var(--clr-indigo-bg) !important; }
+.dark .bg-indigo-100             { background-color: var(--clr-indigo-bg2) !important; }
+.dark .bg-red-50                 { background-color: var(--clr-red-bg) !important; }
+.dark .bg-red-100                { background-color: var(--clr-red-bg2) !important; }
+.dark .bg-green-50               { background-color: var(--clr-green-bg) !important; }
+.dark .bg-green-100              { background-color: var(--clr-green-bg2) !important; }
+.dark .bg-purple-50              { background-color: var(--clr-purple-bg) !important; }
+.dark .bg-purple-100             { background-color: var(--clr-purple-bg2) !important; }
+.dark .bg-yellow-50              { background-color: var(--clr-yellow-bg) !important; }
+.dark .bg-yellow-100             { background-color: var(--clr-yellow-bg2) !important; }
+
+/* Bordes amber/orange/blue/red/indigo/purple en dark mode */
+.dark .border-amber-200          { border-color: var(--clr-orange-border) !important; }
+.dark .border-orange-100,
+.dark .border-orange-200,
+.dark .border-orange-300         { border-color: var(--clr-orange-border) !important; }
+.dark .border-blue-200,
+.dark .border-blue-300           { border-color: var(--clr-blue-border) !important; }
+.dark .border-indigo-200,
+.dark .border-indigo-300         { border-color: var(--clr-indigo-border) !important; }
+.dark .border-purple-200,
+.dark .border-purple-300         { border-color: var(--clr-purple-border) !important; }
+.dark .border-red-200,
+.dark .border-red-300            { border-color: var(--clr-red-border) !important; }
+
+/* Gradientes con paradas purple/indigo */
+.dark [class*="from-purple-50"],
+.dark [class*="from-purple-100"]  {
+  --tw-gradient-from: var(--clr-grad-from) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-purple-50"],
+.dark [class*="to-purple-100"]    {
+  --tw-gradient-to: var(--clr-grad-to) var(--tw-gradient-to-position) !important;
+}
+.dark [class*="from-indigo-50"],
+.dark [class*="from-indigo-100"]  {
+  --tw-gradient-from: var(--clr-grad-from) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-indigo-50"],
+.dark [class*="to-indigo-100"]    {
+  --tw-gradient-to: var(--clr-grad-to) var(--tw-gradient-to-position) !important;
+}
+.dark [class*="from-blue-50"],
+.dark [class*="from-blue-100"]    {
+  --tw-gradient-from: rgb(var(--clr-bg)) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-blue-50"],
+.dark [class*="to-blue-100"]      {
+  --tw-gradient-to: var(--clr-grad-from) var(--tw-gradient-to-position) !important;
+}
+
+/* Gradientes con paradas orange/amber/slate/stone */
+.dark [class*="from-orange-50"],
+.dark [class*="from-amber-50"]   {
+  --tw-gradient-from: rgb(30 41 59) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-amber-50"],
+.dark [class*="to-orange-50"]    {
+  --tw-gradient-to: rgb(51 65 85) var(--tw-gradient-to-position) !important;
+}
+.dark [class*="from-slate-50"],
+.dark [class*="from-slate-100"],
+.dark [class*="from-stone-50"],
+.dark [class*="from-stone-100"]  {
+  --tw-gradient-from: rgb(30 41 59) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-stone-50"],
+.dark [class*="to-stone-100"],
+.dark [class*="to-slate-50"],
+.dark [class*="to-slate-100"]    {
+  --tw-gradient-to: rgb(51 65 85) var(--tw-gradient-to-position) !important;
+}
+
+/* Texto de accent — legible sobre fondos oscuros */
+.dark .text-amber-600            { color: var(--clr-amber-text) !important; }
+.dark .text-amber-700,
+.dark .text-amber-800            { color: var(--clr-amber-text) !important; }
+.dark .text-orange-600,
+.dark .text-orange-700           { color: var(--clr-orange-text) !important; }
+.dark .text-blue-900,
+.dark .text-blue-800             { color: var(--clr-blue-text) !important; }
+.dark .text-blue-700,
+.dark .text-blue-600             { color: var(--clr-blue-text2) !important; }
+.dark .text-indigo-900,
+.dark .text-indigo-800           { color: var(--clr-indigo-text) !important; }
+.dark .text-indigo-700,
+.dark .text-indigo-600           { color: var(--clr-indigo-text) !important; }
+.dark .text-purple-900,
+.dark .text-purple-800           { color: var(--clr-purple-text) !important; }
+.dark .text-purple-700,
+.dark .text-purple-600           { color: var(--clr-purple-text) !important; }
+.dark .text-red-700,
+.dark .text-red-600,
+.dark .text-red-500              { color: var(--clr-red-text) !important; }
+.dark .text-green-700,
+.dark .text-green-600            { color: var(--clr-green-text) !important; }
+.dark .text-yellow-700,
+.dark .text-yellow-600           { color: var(--clr-yellow-text) !important; }
+
+/* Hover de texto — dark mode */
+.dark .hover\:text-slate-900:hover,
+.dark .hover\:text-slate-800:hover,
+.dark .hover\:text-gray-900:hover,
+.dark .hover\:text-gray-800:hover  { color: rgb(var(--clr-t1)) !important; }
+.dark .hover\:text-slate-700:hover,
+.dark .hover\:text-gray-700:hover,
+.dark .hover\:text-stone-700:hover { color: rgb(var(--clr-t1)) !important; }
+
+/* Hover sobre filas de tabla */
+.dark .hover\:bg-gray-50:hover   { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .hover\:bg-slate-50:hover  { background-color: rgb(var(--clr-surface2)) !important; }
+.dark .hover\:bg-orange-50:hover { background-color: var(--clr-orange-bg) !important; }
+.dark .hover\:bg-stone-50:hover  { background-color: rgb(var(--clr-surface2)) !important; }
+
+/* Hover sobre botones con bg -200 */
+.dark .hover\:bg-slate-200:hover { background-color: rgb(var(--clr-surface3)) !important; }
+.dark .hover\:bg-blue-200:hover  { background-color: var(--clr-blue-bg2) !important; }
+.dark .hover\:bg-red-200:hover   { background-color: var(--clr-red-bg2) !important; }
+
+/* Divisores de tabla */
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-y > :not([hidden]) ~ :not([hidden])    { border-color: rgb(var(--clr-border)) !important; }
+
+/* Gradientes con paradas slate/gray -100 */
+.dark [class*="from-slate-100"],
+.dark [class*="from-gray-100"]   {
+  --tw-gradient-from: rgb(30 41 59) var(--tw-gradient-from-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.dark [class*="to-slate-100"],
+.dark [class*="to-gray-100"]     {
+  --tw-gradient-to: rgb(51 65 85) var(--tw-gradient-to-position) !important;
+}
+
+/* bg-white con opacidad (glassmorphism) */
+.dark .bg-white\/80,
+.dark .bg-white\/70,
+.dark .bg-white\/60,
+.dark .bg-white\/50              { background-color: rgb(30 41 59 / 0.8) !important; }
+
+/* Scrollbar sutil en dark */
+.dark ::-webkit-scrollbar       { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track { background: rgb(var(--clr-surface2)); }
+.dark ::-webkit-scrollbar-thumb { background: rgb(var(--clr-border)); border-radius: 3px; }
+

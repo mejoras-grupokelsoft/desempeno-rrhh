@@ -32,14 +32,12 @@ export function obtenerValorEsperado(
   skillsMatrix: SkillMatrix[],
   skillNombre: string,
   seniority: string,
-  rol: string,
   area: string
 ): number {
   const skill = skillsMatrix.find(
     (s) =>
       s.skillNombre === skillNombre &&
       s.seniority === seniority &&
-      s.rol === rol &&
       s.area === area
   );
 
@@ -53,7 +51,6 @@ export function transformarARadarData(
   evaluations: Evaluation[],
   skillsMatrix: SkillMatrix[],
   seniorityEsperado: string,
-  rol: string,
   area: string
 ): RadarDataPoint[] {
   // Obtener lista única de skills
@@ -68,7 +65,7 @@ export function transformarARadarData(
     const promedio = auto > 0 && jefe > 0 
       ? Math.min(promedioSimple, jefe)
       : auto > 0 ? auto : jefe;
-    const esperado = obtenerValorEsperado(skillsMatrix, skill, seniorityEsperado, rol, area);
+    const esperado = obtenerValorEsperado(skillsMatrix, skill, seniorityEsperado, area);
 
     return {
       skill,
@@ -85,9 +82,9 @@ export function transformarARadarData(
  * Bandas: 0-1 Trainee, 1-2 Junior, 2-3 Semi Senior, 3-4 Senior
  */
 export function calcularSeniorityAlcanzado(promedioGeneral: number): Seniority {
-  if (promedioGeneral >= 3.0) return 'Senior';
-  if (promedioGeneral >= 2.0) return 'Semi Senior';
-  if (promedioGeneral >= 1.0) return 'Junior';
+  if (promedioGeneral >= 3.5) return 'Senior';
+  if (promedioGeneral >= 2.5) return 'Semi Senior';
+  if (promedioGeneral >= 1.5) return 'Junior';
   return 'Trainee';
 }
 

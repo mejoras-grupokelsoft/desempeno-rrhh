@@ -4,10 +4,10 @@ import { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, Ca
 import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado } from '../utils/calculations';
 import { getUniqueEvaluados } from '../utils/filters';
-import { filterByPeriod, comparePersonaBetweenPeriods, type PeriodoType } from '../utils/dateUtils';
+import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
 import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
-import { logger } from '../utils/sanitize';
+import { logger, normalizeText } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
 import OnboardingTooltip from '../components/OnboardingTooltip';
 import { liderSteps } from '../config/onboardingSteps';
@@ -15,14 +15,7 @@ import type { Seniority } from '../types';
 import PageHeader from './shared/PageHeader';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
-
-// Función para normalizar texto (sin acentos, minúsculas)
-const normalizeText = (text: string): string => {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-};
+import FormularioView from './FormularioView';
 
 interface MetricasLiderProps {
   evaluations: Evaluation[];
@@ -35,7 +28,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const { logout } = useApp();
 
   // Estados para filtros
-  const [subVista, setSubVista] = useState<'desempeno' | 'equipo'>('desempeno');
+  const [subVista, setSubVista] = useState<'desempeno' | 'equipo' | 'formulario'>('desempeno');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
@@ -49,6 +42,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const [seniorityEsperado] = useState<Seniority>('Senior'); // Líder se espera que sea Senior
   const [selectedPersonChart, setSelectedPersonChart] = useState<string | null>(null);
   const [showDetailedView, setShowDetailedView] = useState<boolean>(false);
+  const [expandedSkills, setExpandedSkills] = useState<{mejoraron: boolean; empeoraron: boolean; iguales: boolean}>({mejoraron: false, empeoraron: false, iguales: false});
   const itemsPerPage = 10;
 
   // Cerrar dropdown al hacer clic fuera
@@ -177,7 +171,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       const firstEval = evals[0];
       map.set(email, {
         email,
-        nombre: `${firstEval.evaluadoNombre} ${firstEval.evaluadoApellido || ''}`.trim(),
+        nombre: firstEval.evaluadoNombre,
         area: firstEval.area,
         rol: firstEval.origen,
         promedioAuto,
@@ -195,12 +189,12 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   // Pentágonos propios
   const miRadarDataHard = useMemo(() => {
     const hardSkills = evaluacionesPropias.filter(e => e.skillTipo === 'HARD');
-    return transformarARadarData(hardSkills, skillsMatrix, seniorityEsperado, currentUser.rol, currentUser.area);
+    return transformarARadarData(hardSkills, skillsMatrix, seniorityEsperado, currentUser.area || 'Sin área');
   }, [evaluacionesPropias, skillsMatrix, seniorityEsperado, currentUser]);
 
   const miRadarDataSoft = useMemo(() => {
     const softSkills = evaluacionesPropias.filter(e => e.skillTipo === 'SOFT');
-    return transformarARadarData(softSkills, skillsMatrix, seniorityEsperado, currentUser.rol, currentUser.area);
+    return transformarARadarData(softSkills, skillsMatrix, seniorityEsperado, currentUser.area || 'Sin área');
   }, [evaluacionesPropias, skillsMatrix, seniorityEsperado, currentUser]);
 
   // Combinar todos los datos para calcular el promedio general
@@ -223,6 +217,13 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   const miComparacion = useMemo(() => {
     return comparePersonaBetweenPeriods(evaluacionesPropias);
   }, [evaluacionesPropias]);
+
+  // Evolución histórica por semestre (para cuando hay 3+ semestres)
+  const evolucionHistorica = useMemo(() => {
+    return agruparPorSemestre(evaluacionesPropias);
+  }, [evaluacionesPropias]);
+
+  const esHistorico = evolucionHistorica.length > 2;
 
   // Análisis de mejora/empeoramiento
   const analisisSkills = useMemo(() => {
@@ -282,13 +283,13 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       return {
         skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
         skillCompleto: skill,
-        'S Anterior': anterior?.promedio || 0,
-        'S Actual': actual?.promedio || 0,
+        'Semestre Anterior': anterior?.promedio || 0,
+        'Semestre Actual': actual?.promedio || 0,
         tipo: anterior?.tipo || actual?.tipo || 'HARD'
       };
     }).sort((a, b) => {
-      const diffA = a['S Actual'] - a['S Anterior'];
-      const diffB = b['S Actual'] - b['S Anterior'];
+      const diffA = a['Semestre Actual'] - a['Semestre Anterior'];
+      const diffB = b['Semestre Actual'] - b['Semestre Anterior'];
       return diffB - diffA; // Ordenar por mayor mejora
     });
   }, [miComparacion]);
@@ -345,10 +346,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       return {
         skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
         skillCompleto: skill,
-        'S Anterior': anterior?.promedio || 0,
-        'S Actual': actual?.promedio || 0
+        'Semestre Anterior': anterior?.promedio || 0,
+        'Semestre Actual': actual?.promedio || 0
       };
-    }).sort((a, b) => (b['S Actual'] - b['S Anterior']) - (a['S Actual'] - a['S Anterior']));
+    }).sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
     
     const softData = Array.from(softSkills).map(skill => {
       const anterior = sAnterior.find(s => s.skill === skill && s.tipo === 'SOFT');
@@ -357,10 +358,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       return {
         skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
         skillCompleto: skill,
-        'S Anterior': anterior?.promedio || 0,
-        'S Actual': actual?.promedio || 0
+        'Semestre Anterior': anterior?.promedio || 0,
+        'Semestre Actual': actual?.promedio || 0
       };
-    }).sort((a, b) => (b['S Actual'] - b['S Anterior']) - (a['S Actual'] - a['S Anterior']));
+    }).sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
     
     return {
       nombre: personEvals[0].evaluadoNombre,
@@ -443,8 +444,26 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
             Mi Equipo ({resultadosEquipo.length})
           </div>
         </button>
+        <button
+          onClick={() => setSubVista('formulario')}
+          className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all ${
+            subVista === 'formulario'
+              ? 'bg-green-600 text-white shadow-lg'
+              : 'bg-white text-slate-700 border border-stone-200 hover:border-green-300 hover:bg-green-50'
+          }`}
+        >
+          <div className="flex items-center justify-center gap-3">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Formulario
+          </div>
+        </button>
       </div>
       )}
+
+      {/* Sección: Formulario */}
+      {subVista === 'formulario' && <FormularioView />}
 
       {/* Sección: Mi Desempeño */}
       {(subVista === 'desempeno' || !showEquipoSection) && (
@@ -476,7 +495,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
         {/* Mensaje informativo para primera evaluación */}
         {evaluacionesPropias.length > 0 && !(analisisSkills.mejoraron.length > 0 || analisisSkills.empeoraron.length > 0 || analisisSkills.iguales.length > 0) && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200 p-6 mb-6">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-blue-200 dark:border-blue-700 p-6 mb-6">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -505,24 +524,30 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
           <div data-onboarding="lider-skills-badges" className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* Mejoraron */}
             {analisisSkills.mejoraron.length > 0 && (
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-200 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-green-300 dark:border-green-600 p-4 shadow-sm">
+                <button
+                  onClick={() => setExpandedSkills({...expandedSkills, mejoraron: !expandedSkills.mejoraron})}
+                  className="w-full flex items-center justify-between gap-2 mb-3 hover:opacity-80 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M7 18c-.5 0-1-.2-1.4-.6l-4-4c-.8-.8-.8-2 0-2.8.8-.8 2-.8 2.8 0l2.6 2.6 5.6-5.6c.8-.8 2-.8 2.8 0 .8.8.8 2 0 2.8l-7 7c-.4.4-.9.6-1.4.6z" />
                     </svg>
+                    <span className="font-bold text-green-800 dark:text-green-300">En qué mejoré ({analisisSkills.mejoraron.length})</span>
                   </div>
-                  <h4 className="text-sm font-bold text-green-900">En qué mejoré ({analisisSkills.mejoraron.length})</h4>
-                </div>
-                <ul className="space-y-1.5">
-                  {analisisSkills.mejoraron.slice(0, 5).map(skill => (
-                    <li key={skill} className="text-xs text-green-800 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      {skill}
+                  <svg className={`w-4 h-4 text-green-600 dark:text-green-400 transition-transform ${expandedSkills.mejoraron ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
+                <ul className="space-y-2">
+                  {(expandedSkills.mejoraron ? analisisSkills.mejoraron : analisisSkills.mejoraron.slice(0, 5)).map(skill => (
+                    <li key={skill} className="text-xs text-green-700 dark:text-green-300 flex items-start gap-2">
+                      <span className="text-green-600 dark:text-green-400 font-bold mt-0.5">✓</span>
+                      <span>{skill}</span>
                     </li>
                   ))}
-                  {analisisSkills.mejoraron.length > 5 && (
-                    <li className="text-xs text-green-600 italic">+{analisisSkills.mejoraron.length - 5} más...</li>
+                  {!expandedSkills.mejoraron && analisisSkills.mejoraron.length > 5 && (
+                    <li className="text-xs text-green-600 dark:text-green-400 italic pt-1">+{analisisSkills.mejoraron.length - 5} más...</li>
                   )}
                 </ul>
               </div>
@@ -530,24 +555,30 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
             {/* Empeoraron - WARNING */}
             {analisisSkills.empeoraron.length > 0 && (
-              <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl border-2 border-red-300 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-orange-300 dark:border-orange-600 p-4 shadow-sm">
+                <button
+                  onClick={() => setExpandedSkills({...expandedSkills, empeoraron: !expandedSkills.empeoraron})}
+                  className="w-full flex items-center justify-between gap-2 mb-3 hover:opacity-80 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-orange-600 dark:text-orange-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 6.4L17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6l1.4 1.4L12 13.4l5.6 5.6 1.4-1.4L13.4 12z" />
                     </svg>
+                    <span className="font-bold text-orange-800 dark:text-orange-300">⚠️ Debería mejorar ({analisisSkills.empeoraron.length})</span>
                   </div>
-                  <h4 className="text-sm font-bold text-red-900">⚠️ Debería mejorar ({analisisSkills.empeoraron.length})</h4>
-                </div>
-                <ul className="space-y-1.5">
-                  {analisisSkills.empeoraron.slice(0, 5).map(skill => (
-                    <li key={skill} className="text-xs text-red-800 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                      {skill}
+                  <svg className={`w-4 h-4 text-orange-600 dark:text-orange-400 transition-transform ${expandedSkills.empeoraron ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
+                <ul className="space-y-2">
+                  {(expandedSkills.empeoraron ? analisisSkills.empeoraron : analisisSkills.empeoraron.slice(0, 5)).map(skill => (
+                    <li key={skill} className="text-xs text-orange-700 dark:text-orange-300 flex items-start gap-2">
+                      <span className="text-orange-600 dark:text-orange-400 font-bold mt-0.5">✕</span>
+                      <span>{skill}</span>
                     </li>
                   ))}
-                  {analisisSkills.empeoraron.length > 5 && (
-                    <li className="text-xs text-red-600 italic">+{analisisSkills.empeoraron.length - 5} más...</li>
+                  {!expandedSkills.empeoraron && analisisSkills.empeoraron.length > 5 && (
+                    <li className="text-xs text-orange-600 dark:text-orange-400 italic pt-1">+{analisisSkills.empeoraron.length - 5} más...</li>
                   )}
                 </ul>
               </div>
@@ -555,24 +586,30 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
             {/* Iguales */}
             {analisisSkills.iguales.length > 0 && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-blue-300 dark:border-blue-600 p-4 shadow-sm">
+                <button
+                  onClick={() => setExpandedSkills({...expandedSkills, iguales: !expandedSkills.iguales})}
+                  className="w-full flex items-center justify-between gap-2 mb-3 hover:opacity-80 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16h10M7 12h10m11-8a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
+                    <span className="font-bold text-blue-800 dark:text-blue-300">Mantuve nivel ({analisisSkills.iguales.length})</span>
                   </div>
-                  <h4 className="text-sm font-bold text-blue-900">Mantuve nivel ({analisisSkills.iguales.length})</h4>
-                </div>
-                <ul className="space-y-1.5">
-                  {analisisSkills.iguales.slice(0, 5).map(skill => (
-                    <li key={skill} className="text-xs text-blue-800 flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                      {skill}
+                  <svg className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${expandedSkills.iguales ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                  </svg>
+                </button>
+                <ul className="space-y-2">
+                  {(expandedSkills.iguales ? analisisSkills.iguales : analisisSkills.iguales.slice(0, 5)).map(skill => (
+                    <li key={skill} className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-bold mt-0.5">−</span>
+                      <span>{skill}</span>
                     </li>
                   ))}
-                  {analisisSkills.iguales.length > 5 && (
-                    <li className="text-xs text-blue-600 italic">+{analisisSkills.iguales.length - 5} más...</li>
+                  {!expandedSkills.iguales && analisisSkills.iguales.length > 5 && (
+                    <li className="text-xs text-blue-600 dark:text-blue-400 italic pt-1">+{analisisSkills.iguales.length - 5} más...</li>
                   )}
                 </ul>
               </div>
@@ -581,17 +618,93 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         )}
 
         {/* Gráfico de Línea - Evolución de Skills */}
-        {lineChartData.length > 0 && (
+        {(lineChartData.length > 0 || lineChartData.length === 0) && (
           <div data-onboarding="lider-evolucion" className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
-              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-                </svg>
+            <div>
+              <div className="flex items-center gap-2 text-lg font-bold text-slate-900 mb-4">
+                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                  </svg>
+                </div>
+                <span>Evolución de Competencias (Hard y Soft Skills)</span>
               </div>
-              <span>Evolución de Competencias</span>
-            </h3>
-            <p className="text-xs text-stone-500 mb-6">Comparación entre el semestre anterior y el actual, separado por tipo de competencia</p>
+              <div>
+                {lineChartData.length === 0 && !esHistorico ? (
+                  <div className="text-center py-8">
+                    <svg className="w-12 h-12 text-stone-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                    <p className="text-stone-500 text-sm font-medium">Sin datos de evolución</p>
+                    <p className="text-stone-400 text-xs mt-1">Se necesitan evaluaciones en distintos semestres</p>
+                  </div>
+                ) : esHistorico ? (
+                  /* Vista histórica: BarChart de promedio por semestre */
+                  <>
+                    <p className="text-xs text-stone-500 mb-6">Evolución del promedio general a través de todos los semestres registrados</p>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={evolucionHistorica} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="semestre" tick={{ fontSize: 12, fill: '#6b7280' }} />
+                        <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} label={{ value: 'Promedio (1-5)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }} />
+                        <RechartsTooltip
+                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                        <Bar dataKey="auto" name="Auto-evaluación" fill="#93c5fd" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="jefe" name="Evaluación Jefe" fill="#1e40af" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="promedio" name="Promedio" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+
+                    {/* Tambien mostrar lineas Hard/Soft del ultimo par de semestres */}
+                    {lineChartData.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-stone-200">
+                        <p className="text-xs text-stone-500 mb-4">Comparación detallada por skill: semestre anterior vs actual</p>
+
+                        {lineChartData.filter(d => d.tipo === 'HARD').length > 0 && (
+                          <div className="mb-6">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-sm font-bold text-slate-800">Hard Skills</span>
+                            </div>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <LineChart data={lineChartData.filter(d => d.tipo === 'HARD')}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={100} />
+                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_label, payload) => payload?.[0]?.payload?.skillCompleto || _label} />
+                                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                                <Line type="monotone" dataKey="Semestre Anterior" stroke="#93c5fd" strokeWidth={2} strokeDasharray="5 3" dot={{ fill: '#93c5fd', r: 4, strokeWidth: 0 }} name="Semestre Anterior (Hard)" />
+                                <Line type="monotone" dataKey="Semestre Actual" stroke="#1e40af" strokeWidth={3} dot={{ fill: '#1e40af', r: 5, strokeWidth: 0 }} name="Semestre Actual (Hard)" />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+
+                        {lineChartData.filter(d => d.tipo === 'SOFT').length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-sm font-bold text-slate-800">Soft Skills</span>
+                            </div>
+                            <ResponsiveContainer width="100%" height={300}>
+                              <LineChart data={lineChartData.filter(d => d.tipo === 'SOFT')}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={100} />
+                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_label, payload) => payload?.[0]?.payload?.skillCompleto || _label} />
+                                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                                <Line type="monotone" dataKey="Semestre Anterior" stroke="#d8b4fe" strokeWidth={2} strokeDasharray="5 3" dot={{ fill: '#d8b4fe', r: 4, strokeWidth: 0 }} name="Semestre Anterior (Soft)" />
+                                <Line type="monotone" dataKey="Semestre Actual" stroke="#7c3aed" strokeWidth={3} dot={{ fill: '#7c3aed', r: 5, strokeWidth: 0 }} name="Semestre Actual (Soft)" />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-stone-500 mb-6">Comparación entre el semestre anterior y el actual, separado por tipo de competencia</p>
 
             {/* Hard Skills */}
             {lineChartData.filter(d => d.tipo === 'HARD').length > 0 && (
@@ -636,22 +749,22 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Line 
                       type="monotone" 
-                      dataKey="S Anterior" 
+                      dataKey="Semestre Anterior" 
                       stroke="#93c5fd"
                       strokeWidth={2}
                       strokeDasharray="5 3"
                       dot={{ fill: '#93c5fd', r: 4, strokeWidth: 0 }}
                       activeDot={{ r: 6 }}
-                      name="S Anterior (Hard)"
+                      name="Semestre Anterior (Hard)"
                     />
                     <Line 
                       type="monotone" 
-                      dataKey="S Actual" 
+                      dataKey="Semestre Actual" 
                       stroke="#1e40af" 
                       strokeWidth={3}
                       dot={{ fill: '#1e40af', r: 5, strokeWidth: 0 }}
                       activeDot={{ r: 7 }}
-                      name="S Actual (Hard)"
+                      name="Semestre Actual (Hard)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -701,27 +814,31 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Line 
                       type="monotone" 
-                      dataKey="S Anterior" 
+                      dataKey="Semestre Anterior" 
                       stroke="#d8b4fe"
                       strokeWidth={2}
                       strokeDasharray="5 3"
                       dot={{ fill: '#d8b4fe', r: 4, strokeWidth: 0 }}
                       activeDot={{ r: 6 }}
-                      name="S Anterior (Soft)"
+                      name="Semestre Anterior (Soft)"
                     />
                     <Line 
                       type="monotone" 
-                      dataKey="S Actual" 
+                      dataKey="Semestre Actual" 
                       stroke="#7c3aed" 
                       strokeWidth={3}
                       dot={{ fill: '#7c3aed', r: 5, strokeWidth: 0 }}
                       activeDot={{ r: 7 }}
-                      name="S Actual (Soft)"
+                      name="Semestre Actual (Soft)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -731,40 +848,59 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
             {/* Vista Compacta - Grid de 2 columnas */}
             {!showDetailedView && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {miRadarDataHard.length > 0 && (
-                  <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                        </svg>
-                      </div>
-                      <span>Hard Skills</span>
-                    </h3>
+                {/* Hard Skills */}
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
+                    </div>
+                    <span>Hard Skills</span>
+                  </h3>
+                  {miRadarDataHard.length > 0 ? (
                     <RadarChart 
                       data={miRadarDataHard} 
                       title="Mis Hard Skills" 
                       onClick={() => setShowDetailedView(true)}
                     />
-                  </div>
-                )}
-                {miRadarDataSoft.length > 0 && (
-                  <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span>Soft Skills</span>
-                    </h3>
+                  ) : (
+                    <div className="text-center py-8">
+                      <svg className="w-12 h-12 text-stone-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
+                      <p className="text-stone-500 text-sm font-medium">Sin evaluaciones de Hard Skills</p>
+                      <p className="text-stone-400 text-xs mt-1">Completa evaluaciones para ver el gráfico</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Soft Skills */}
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span>Soft Skills</span>
+                  </h3>
+                  {miRadarDataSoft.length > 0 ? (
                     <RadarChart 
                       data={miRadarDataSoft} 
                       title="Mis Soft Skills"
                       onClick={() => setShowDetailedView(true)}
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-center py-8">
+                      <svg className="w-12 h-12 text-stone-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-stone-500 text-sm font-medium">Sin evaluaciones de Soft Skills</p>
+                      <p className="text-stone-400 text-xs mt-1">Completa evaluaciones para ver el gráfico</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -794,171 +930,187 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                 </div>
 
                 {/* Hard Skills */}
-                {miRadarDataHard.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                        </svg>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                        Hard Skills
-                      </span>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
                     </div>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                      Hard Skills
+                    </span>
+                  </div>
 
+                  {miRadarDataHard.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <div className="lg:col-span-2">
                         <RadarChart data={miRadarDataHard} title="Mis Hard Skills" />
                       </div>
                   
-                  {barrasComparacion.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                        <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
-                          Mejoras Destacadas
-                        </p>
-                        <div className="space-y-2">
-                          {barrasComparacion
-                            .filter(s => s.mejora > 0.3 && s.tipo === 'HARD')
-                            .slice(0, 3)
-                            .map((s, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2">
-                                <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                  {s.skillCompleto}
-                                </span>
-                                <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                              </div>
-                            ))}
-                          {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'HARD').length === 0 && (
-                            <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                          )}
-                        </div>
-                      </div>
+                      {barrasComparacion.length > 0 && (
+                        <div className="space-y-4">
+                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                              </svg>
+                              Mejoras Destacadas
+                            </p>
+                            <div className="space-y-2">
+                              {barrasComparacion
+                                .filter(s => s.mejora > 0.3 && s.tipo === 'HARD')
+                                .slice(0, 3)
+                                .map((s, idx) => (
+                                  <div key={idx} className="flex items-start justify-between gap-2">
+                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
+                                      {s.skillCompleto}
+                                    </span>
+                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'HARD').length === 0 && (
+                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
+                              )}
+                            </div>
+                          </div>
 
-                      <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                        <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                          </svg>
-                          Áreas de Atención
-                        </p>
-                        <div className="space-y-2">
-                          {barrasComparacion
-                            .filter(s => s.mejora < -0.1 && s.tipo === 'HARD')
-                            .slice(0, 3)
-                            .map((s, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2">
-                                <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                  {s.skillCompleto}
-                                </span>
-                                <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                              </div>
-                            ))}
-                          {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'HARD').length === 0 && (
-                            <p className="text-xs text-green-600 font-semibold">Todo bien!</p>
-                          )}
+                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                              </svg>
+                              Áreas de Atención
+                            </p>
+                            <div className="space-y-2">
+                              {barrasComparacion
+                                .filter(s => s.mejora < -0.1 && s.tipo === 'HARD')
+                                .slice(0, 3)
+                                .map((s, idx) => (
+                                  <div key={idx} className="flex items-start justify-between gap-2">
+                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
+                                      {s.skillCompleto}
+                                    </span>
+                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'HARD').length === 0 && (
+                                <p className="text-xs text-green-600 font-semibold">Todo bien!</p>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-100">
+                      <svg className="w-12 h-12 text-stone-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
+                      <p className="text-stone-500 text-sm font-medium">Sin evaluaciones de Hard Skills</p>
+                      <p className="text-stone-400 text-xs mt-1">Completa evaluaciones para ver el desglose detallado</p>
                     </div>
                   )}
-                    </div>
-                  </div>
-                )}
+                </div>
 
                 {/* Soft Skills */}
-                {miRadarDataSoft.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
-                        Soft Skills
-                      </span>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                     </div>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                      Soft Skills
+                    </span>
+                  </div>
 
+                  {miRadarDataSoft.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <div className="lg:col-span-2">
                         <RadarChart data={miRadarDataSoft} title="Mis Soft Skills" />
                       </div>
                   
-                  {barrasComparacion.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                        <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                          </svg>
-                          Mejoras Destacadas
-                        </p>
-                        <div className="space-y-2">
-                          {barrasComparacion
-                            .filter(s => s.mejora > 0.3 && s.tipo === 'SOFT')
-                            .slice(0, 3)
-                            .map((s, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2">
-                                <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                  {s.skillCompleto}
-                                </span>
-                                <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                              </div>
-                            ))}
-                          {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'SOFT').length === 0 && (
-                            <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                          )}
-                        </div>
-                      </div>
+                      {barrasComparacion.length > 0 && (
+                        <div className="space-y-4">
+                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                              </svg>
+                              Mejoras Destacadas
+                            </p>
+                            <div className="space-y-2">
+                              {barrasComparacion
+                                .filter(s => s.mejora > 0.3 && s.tipo === 'SOFT')
+                                .slice(0, 3)
+                                .map((s, idx) => (
+                                  <div key={idx} className="flex items-start justify-between gap-2">
+                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
+                                      {s.skillCompleto}
+                                    </span>
+                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'SOFT').length === 0 && (
+                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
+                              )}
+                            </div>
+                          </div>
 
-                      <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                        <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                          </svg>
-                          Áreas de Atención
-                        </p>
-                        <div className="space-y-2">
-                          {barrasComparacion
-                            .filter(s => s.mejora < -0.1 && s.tipo === 'SOFT')
-                            .slice(0, 3)
-                            .map((s, idx) => (
-                              <div key={idx} className="flex items-start justify-between gap-2">
-                                <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                  {s.skillCompleto}
-                                </span>
-                                <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                              </div>
-                            ))}
-                          {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'SOFT').length === 0 && (
-                            <p className="text-xs text-green-600 font-semibold">Todo bien!</p>
-                          )}
+                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                              </svg>
+                              Áreas de Atención
+                            </p>
+                            <div className="space-y-2">
+                              {barrasComparacion
+                                .filter(s => s.mejora < -0.1 && s.tipo === 'SOFT')
+                                .slice(0, 3)
+                                .map((s, idx) => (
+                                  <div key={idx} className="flex items-start justify-between gap-2">
+                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
+                                      {s.skillCompleto}
+                                    </span>
+                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'SOFT').length === 0 && (
+                                <p className="text-xs text-green-600 font-semibold">Todo bien!</p>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-100">
+                      <svg className="w-12 h-12 text-stone-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-stone-500 text-sm font-medium">Sin evaluaciones de Soft Skills</p>
+                      <p className="text-stone-400 text-xs mt-1">Completa evaluaciones para ver el desglose detallado</p>
                     </div>
                   )}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-8 text-center">
-            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-orange-200 dark:border-orange-700 p-8 text-center">
+            <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/40 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-orange-500 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <p className="text-amber-900 text-lg font-semibold mb-2">
+            <p className="text-slate-900 dark:text-slate-100 text-lg font-semibold mb-2">
               No se encontraron evaluaciones propias
             </p>
-            <p className="text-amber-700 text-sm">
-              Tu email: <span className="font-mono bg-amber-100 px-2 py-1 rounded">{currentUser.email}</span>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Tu email: <span className="font-mono bg-orange-100 dark:bg-slate-700 px-2 py-1 rounded">{currentUser.email}</span>
             </p>
             <p className="text-amber-600 text-sm mt-2">
               Verificá que el email coincida con el de las evaluaciones en el CSV
@@ -1279,10 +1431,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             strokeWidth={2}
                             strokeDasharray="4 4"
                           />
-                          <Bar dataKey="S Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
-                          <Bar dataKey="S Actual" fill="#3b82f6" radius={[0, 3, 3, 0]}>
+                          <Bar dataKey="Semestre Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="Semestre Actual" fill="#3b82f6" radius={[0, 3, 3, 0]}>
                             {selectedPersonLineData.hardData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry['S Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#3b82f6'} />
+                              <Cell key={`cell-${index}`} fill={entry['Semestre Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#3b82f6'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1321,10 +1473,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             strokeWidth={2}
                             strokeDasharray="4 4"
                           />
-                          <Bar dataKey="S Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
-                          <Bar dataKey="S Actual" fill="#9333ea" radius={[0, 3, 3, 0]}>
+                          <Bar dataKey="Semestre Anterior" fill="#cbd5e1" radius={[0, 3, 3, 0]} />
+                          <Bar dataKey="Semestre Actual" fill="#9333ea" radius={[0, 3, 3, 0]}>
                             {selectedPersonLineData.softData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry['S Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#9333ea'} />
+                              <Cell key={`cell-${index}`} fill={entry['Semestre Actual'] >= selectedPersonLineData.puntajeEsperado ? '#10b981' : '#9333ea'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1337,7 +1489,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                 <div className="flex items-center justify-center gap-6 text-xs bg-stone-50 rounded-lg py-2">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-slate-300 rounded"></div>
-                    <span className="text-stone-600">S Anterior</span>
+                    <span className="text-stone-600">Semestre Anterior</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-blue-500 rounded"></div>
@@ -1361,10 +1513,10 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
           </div>
         ) : (
           <div className="p-6 pt-0">
-            <div className="bg-amber-50 rounded-2xl border border-amber-200 p-8 text-center">
-              <p className="text-amber-900 font-semibold">No hay datos del equipo para mostrar</p>
-              <p className="text-amber-700 text-sm mt-2">Verificá que haya evaluaciones de tu equipo en Google Sheets</p>
-              <p className="text-amber-600 text-xs mt-2">Email actual: {currentUser.email}</p>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-orange-200 dark:border-orange-700 p-8 text-center">
+              <p className="text-slate-900 dark:text-slate-100 font-semibold">No hay datos del equipo para mostrar</p>
+              <p className="text-slate-600 dark:text-slate-400 text-sm mt-2">Verificá que haya evaluaciones de tu equipo en Google Sheets</p>
+              <p className="text-slate-500 dark:text-slate-500 text-xs mt-2">Email actual: {currentUser.email}</p>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 // src/components/Dashboard.tsx
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import { filterEvaluationsByRole, getUniqueAreas, getUniqueEvaluados, canSeeAll, getUniqueHardSkillAreas } from '../utils/filters';
 import {
   transformarARadarData,
@@ -11,34 +12,30 @@ import {
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
-import { sanitizeText, sanitizeEmailList } from '../utils/sanitize';
-import RadarChart from '../components/RadarChart';
+import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
+import PersonaRadarPanel from '../components/PersonaRadarPanel';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
 import MetricasRRHH from '../components/MetricasRRHH';
 import MetricasLider from '../components/MetricasLider';
 import OnboardingTooltip from '../components/OnboardingTooltip';
+import AdminDashboard from '../components/admin/AdminDashboard';
+import FormularioView from '../components/FormularioView';
 import { dashboardSteps } from '../config/onboardingSteps';
 import type { Seniority } from '../types';
+import MiDesempenoPanel from '../components/MiDesempenoPanel';
 
-type VistaType = 'individual' | 'metricas' | 'equipo';
-
-// Función para normalizar texto (sin acentos, minúsculas)
-const normalizeText = (text: string): string => {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-};
+type VistaType = 'individual' | 'metricas' | 'equipo' | 'formulario' | 'areas';
 
 export default function Dashboard() {
   const { currentUser, users, evaluations, skillsMatrix, logout } = useApp();
+  const { dark, toggle: toggleDark } = useTheme();
+  const [showAdmin, setShowAdmin] = useState(false);
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [seniorityEsperado] = useState<Seniority>('Junior');
   const [hasAutoSelected, setHasAutoSelected] = useState<boolean>(false);
   
   // Vista inicial depende del rol
@@ -56,6 +53,8 @@ export default function Dashboard() {
   const [emailDestinatarios, setEmailDestinatarios] = useState<string>('');
   const [enviandoEmail, setEnviandoEmail] = useState<boolean>(false);
   const [emailResultado, setEmailResultado] = useState<{ tipo: 'exito' | 'error'; mensaje: string } | null>(null);
+  const [expandedArea, setExpandedArea] = useState<string | null>(null);
+  const [expandedAreaRadar, setExpandedAreaRadar] = useState<string | null>(null); // email de persona seleccionada en área
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -116,15 +115,19 @@ export default function Dashboard() {
     return evaluados.filter(e => normalizeText(e.nombre).includes(normalized));
   }, [evaluados, searchTerm]);
 
-  // Seleccionar automáticamente el primer evaluado en la carga inicial
+  // Seleccionar automáticamente el primer evaluado solo si el rol ve una sola persona (Analista/Lider)
   useEffect(() => {
     if (!hasAutoSelected && !selectedEmail && evaluados.length > 0) {
-      const firstEvaluado = evaluados[0];
-      setSelectedEmail(firstEvaluado.email);
-      setSearchTerm(firstEvaluado.nombre);
+      // Director y RRHH arrancan con "Todos los evaluados" (sin selección automática)
+      const esVistaGlobal = currentUser?.rol === 'Director' || currentUser?.rol === 'RRHH';
+      if (!esVistaGlobal) {
+        const firstEvaluado = evaluados[0];
+        setSelectedEmail(firstEvaluado.email);
+        setSearchTerm(firstEvaluado.nombre);
+      }
       setHasAutoSelected(true);
     }
-  }, [evaluados, selectedEmail, hasAutoSelected]);
+  }, [evaluados, selectedEmail, hasAutoSelected, currentUser?.rol]);
 
   // Resetear email seleccionado si ya no está en la lista de evaluados (por cambio de filtros)
   useEffect(() => {
@@ -140,7 +143,13 @@ export default function Dashboard() {
   }, [evaluados, selectedEmail]);
 
   const mostrarEvaluado = evaluados.find(e => e.email === selectedEmail);
-  
+  // Área del evaluado seleccionado (tomada de sus evaluaciones)
+  const selectedPersonArea = useMemo(() => {
+    if (!selectedEmail) return selectedArea || '';
+    const evalOfPerson = visibleEvaluations.find(e => e.evaluadoEmail === selectedEmail);
+    return evalOfPerson?.area || selectedArea || '';
+  }, [selectedEmail, visibleEvaluations, selectedArea]);
+
   // ===== EVALUACIONES DE LÍDER =====
   // Áreas únicas de Hard Skills para el carrusel de Líder
   const hardSkillAreasLider = useMemo(() => {
@@ -205,6 +214,18 @@ export default function Dashboard() {
       : soft;
   }, [filteredEvaluations, selectedEmail]);
 
+  // Seniority esperado para los radars: nivel alcanzado del semestre anterior, o el actual si no hay anterior
+  const seniorityEsperado: Seniority = useMemo(() => {
+    if (!selectedEmail) return 'Junior';
+    const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const { sAnterior } = comparePersonaBetweenPeriods(evalsPersona);
+    if (sAnterior.length === 0) return calcularSeniorityAlcanzado(
+      evalsPersona.reduce((s, e) => s + e.puntaje, 0) / (evalsPersona.length || 1)
+    );
+    const promAnterior = sAnterior.reduce((s, c) => s + c.promedio, 0) / sAnterior.length;
+    return calcularSeniorityAlcanzado(promAnterior);
+  }, [selectedEmail, visibleEvaluations]);
+
   // Transformar datos para el radar - Líder
   const radarDataHardLider = useMemo(() => {
     if (hardSkillsLider.length === 0) return [];
@@ -213,7 +234,6 @@ export default function Dashboard() {
       hardSkillsLider,
       skillsMatrix,
       seniorityEsperado,
-      'Líder',
       firstEval.area
     );
   }, [hardSkillsLider, skillsMatrix, seniorityEsperado]);
@@ -225,7 +245,6 @@ export default function Dashboard() {
       softSkillsLider,
       skillsMatrix,
       seniorityEsperado,
-      'Líder',
       firstEval.area
     );
   }, [softSkillsLider, skillsMatrix, seniorityEsperado]);
@@ -238,7 +257,6 @@ export default function Dashboard() {
       hardSkillsAnalista,
       skillsMatrix,
       seniorityEsperado,
-      'Analista',
       firstEval.area
     );
   }, [hardSkillsAnalista, skillsMatrix, seniorityEsperado]);
@@ -250,7 +268,6 @@ export default function Dashboard() {
       softSkillsAnalista,
       skillsMatrix,
       seniorityEsperado,
-      'Analista',
       firstEval.area
     );
   }, [softSkillsAnalista, skillsMatrix, seniorityEsperado]);
@@ -263,6 +280,27 @@ export default function Dashboard() {
     [promedioGeneral]
   );
 
+  // Seniority esperado: siguiente nivel al alcanzado en la evaluación anterior.
+  // Si solo hay un semestre → '--' (primera evaluación)
+  const SENIORITY_NEXT: Record<string, Seniority> = {
+    'Trainee': 'Junior',
+    'Junior': 'Semi Senior',
+    'Semi Senior': 'Senior',
+    'Senior': 'Senior',
+  };
+  const seniorityEsperadoDisplay = useMemo((): string => {
+    if (!selectedEmail) return seniorityAlcanzado;
+    const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
+    const { sAnterior } = comparePersonaBetweenPeriods(evalsPersona);
+    if (sAnterior.length === 0) return '--'; // primera evaluación
+    const promAnterior = sAnterior.reduce((s, c) => s + c.promedio, 0) / sAnterior.length;
+    const seniorityAnterior = calcularSeniorityAlcanzado(promAnterior);
+    return SENIORITY_NEXT[seniorityAnterior] || seniorityAlcanzado;
+  }, [selectedEmail, visibleEvaluations, seniorityAlcanzado]);
+
+  // Para los radars usamos el seniority alcanzado actual como referencia
+  // (seniorityEsperado ya está declarado arriba)
+
 
   // Comparación semestral (S anterior vs S actual) solo si hay un evaluado seleccionado
   const comparacionTrimestral = useMemo(() => {
@@ -272,65 +310,41 @@ export default function Dashboard() {
     return comparePersonaBetweenPeriods(evalsPersona);
   }, [selectedEmail, visibleEvaluations]);
 
-  // Preparar datos para gráfico de barras apiladas
-  const barrasComparacion = useMemo(() => {
-    if (!comparacionTrimestral) return [];
-    
-    const { sAnterior, sActual } = comparacionTrimestral;
-    
-    // Combinar skills de ambos períodos
-    const allSkills = new Set([
-      ...sAnterior.map(s => s.skill),
-      ...sActual.map(s => s.skill)
-    ]);
-    
-    return Array.from(allSkills).map(skill => {
-      const anterior = sAnterior.find(s => s.skill === skill);
-      const actual = sActual.find(s => s.skill === skill);
-      
-      return {
-        skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
-        skillCompleto: skill,
-        'S Anterior': anterior?.promedio || 0,
-        'S Actual': actual?.promedio || 0,
-        tipo: anterior?.tipo || actual?.tipo || 'HARD',
-        mejora: (actual?.promedio || 0) - (anterior?.promedio || 0)
-      };
-    }).sort((a, b) => b.mejora - a.mejora); // Ordenar por mejora descendente
-  }, [comparacionTrimestral]);
-
   // Datos para el Dumbbell Chart: combina comparación trimestral con esperado directo de skillsMatrix
   const dumbbellData = useMemo((): DumbbellDataPoint[] => {
-    if (!comparacionTrimestral || !selectedEmail) return [];
-    const { sAnterior, sActual } = comparacionTrimestral;
+    if (!selectedEmail) return [];
+    const { sAnterior, sActual } = comparacionTrimestral ?? { sAnterior: [], sActual: [] };
 
-    const allSkills = new Set([
-      ...sAnterior.map(s => s.skill),
-      ...sActual.map(s => s.skill)
-    ]);
-
-    // Obtener area del usuario seleccionado
+    // Si no hay comparación entre semestres, usar los datos disponibles como "actual"
     const evalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
     const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
 
-    return Array.from(allSkills).map(skill => {
-      const anterior = sAnterior.find(s => s.skill === skill);
-      const actual = sActual.find(s => s.skill === skill);
+    // Construir allSkills desde sActual primero, luego sAnterior como fallback
+    const allSkills = new Set([
+      ...sActual.map(s => s.skill),
+      ...sAnterior.map(s => s.skill),
+    ]);
 
-      // Calcular esperado directamente desde skillsMatrix (no depende de filtros)
-      const matchSkill = skillsMatrix.find(
-        s => s.skillNombre === skill && s.seniority === seniorityEsperado && s.area === area
-      );
+    return Array.from(allSkills)
+      .filter(skill => skill.toLowerCase() !== 'general') // Filtrar placeholder
+      .map(skill => {
+        const anterior = sAnterior.find(s => s.skill === skill);
+        const actual = sActual.find(s => s.skill === skill);
 
-      return {
-        skill,
-        autoAnterior: anterior?.auto || 0,
-        jefeAnterior: anterior?.jefe || 0,
-        autoActual: actual?.auto || 0,
-        jefeActual: actual?.jefe || 0,
-        esperado: matchSkill?.valorEsperado || 0,
-      };
-    });
+        const matchSkill = skillsMatrix.find(
+          s => s.skillNombre === skill && s.seniority === seniorityEsperado && s.area === area
+        );
+
+        return {
+          skill,
+          autoAnterior: anterior?.auto || 0,
+          jefeAnterior: anterior?.jefe || 0,
+          autoActual: actual?.auto || 0,
+          jefeActual: actual?.jefe || 0,
+          esperado: matchSkill?.valorEsperado || 0,
+        };
+      })
+      .filter(d => d.autoActual > 0 || d.jefeActual > 0 || d.autoAnterior > 0 || d.jefeAnterior > 0);
   }, [comparacionTrimestral, selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
 
   // Datos para el gráfico de evolución semestral (múltiples S)
@@ -340,6 +354,69 @@ export default function Dashboard() {
     const area = evalsPersona.length > 0 ? evalsPersona[0].area : '';
     return calcularEvolucionSemestral(evalsPersona, skillsMatrix, seniorityEsperado, area);
   }, [selectedEmail, visibleEvaluations, skillsMatrix, seniorityEsperado]);
+
+  // Métricas agrupadas por área (para Vista Áreas)
+  const areaStats = useMemo(() => {
+    type AreaAcc = {
+      nombre: string;
+      personas: Set<string>;
+      sumaAuto: number; countAuto: number;
+      sumaJefe: number; countJefe: number;
+      sumaHard: number; countHard: number;
+      sumaSoft: number; countSoft: number;
+    };
+    const areas = new Map<string, AreaAcc>();
+    visibleEvaluations.forEach(e => {
+      if (!e.area) return;
+      if (!areas.has(e.area)) {
+        areas.set(e.area, { nombre: e.area, personas: new Set(), sumaAuto: 0, countAuto: 0, sumaJefe: 0, countJefe: 0, sumaHard: 0, countHard: 0, sumaSoft: 0, countSoft: 0 });
+      }
+      const a = areas.get(e.area)!;
+      a.personas.add(e.evaluadoEmail);
+      if (e.tipoEvaluador === 'AUTO') { a.sumaAuto += e.puntaje; a.countAuto++; }
+      if (e.tipoEvaluador === 'JEFE') { a.sumaJefe += e.puntaje; a.countJefe++; }
+      if (e.skillTipo === 'HARD') { a.sumaHard += e.puntaje; a.countHard++; }
+      if (e.skillTipo === 'SOFT') { a.sumaSoft += e.puntaje; a.countSoft++; }
+    });
+    return Array.from(areas.values()).map(a => ({
+      nombre: a.nombre,
+      cantPersonas: a.personas.size,
+      promedioAuto: a.countAuto > 0 ? +(a.sumaAuto / a.countAuto).toFixed(2) : null,
+      promedioJefe: a.countJefe > 0 ? +(a.sumaJefe / a.countJefe).toFixed(2) : null,
+      promedioHard: a.countHard > 0 ? +(a.sumaHard / a.countHard).toFixed(2) : null,
+      promedioSoft: a.countSoft > 0 ? +(a.sumaSoft / a.countSoft).toFixed(2) : null,
+      promedioGeneral: (a.countAuto + a.countJefe) > 0
+        ? +((a.sumaAuto + a.sumaJefe) / (a.countAuto + a.countJefe)).toFixed(2)
+        : null,
+      emailsPersonas: Array.from(a.personas),
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [visibleEvaluations]);
+
+  // Personas del área expandida con stats individuales
+  const personasAreaExpandida = useMemo(() => {
+    if (!expandedArea) return [];
+    const evalsArea = visibleEvaluations.filter(e => e.area === expandedArea);
+    const personaMap = new Map<string, { email: string; nombre: string; auto: number; autoCount: number; jefe: number; jefeCount: number }>();
+    evalsArea.forEach(e => {
+      if (!personaMap.has(e.evaluadoEmail)) {
+        personaMap.set(e.evaluadoEmail, { email: e.evaluadoEmail, nombre: e.evaluadoNombre, auto: 0, autoCount: 0, jefe: 0, jefeCount: 0 });
+      }
+      const p = personaMap.get(e.evaluadoEmail)!;
+      if (e.tipoEvaluador === 'AUTO') { p.auto += e.puntaje; p.autoCount++; }
+      if (e.tipoEvaluador === 'JEFE') { p.jefe += e.puntaje; p.jefeCount++; }
+    });
+    return Array.from(personaMap.values()).map(p => ({
+      email: p.email,
+      nombre: p.nombre,
+      promedioAuto: p.autoCount > 0 ? +(p.auto / p.autoCount).toFixed(2) : null,
+      promedioJefe: p.jefeCount > 0 ? +(p.jefe / p.jefeCount).toFixed(2) : null,
+      promedioFinal: p.autoCount > 0 && p.jefeCount > 0
+        ? +((p.auto / p.autoCount + p.jefe / p.jefeCount) / 2).toFixed(2)
+        : p.autoCount > 0 ? +(p.auto / p.autoCount).toFixed(2) : +(p.jefe / p.jefeCount).toFixed(2),
+      brecha: p.autoCount > 0 && p.jefeCount > 0
+        ? +Math.abs(p.auto / p.autoCount - p.jefe / p.jefeCount).toFixed(2) : null,
+    })).sort((a, b) => b.promedioFinal - a.promedioFinal);
+  }, [expandedArea, visibleEvaluations]);
 
   const handleResetFilters = () => {
     setSelectedArea('');
@@ -366,15 +443,24 @@ export default function Dashboard() {
     const evalArea = firstEval?.area || '';
     const evalRol = firstEval?.origen === 'LIDER' ? 'Líder' : 'Analista';
 
-    const radarDataHard = transformarARadarData(evalsHard, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
-    const radarDataSoft = transformarARadarData(evalsSoft, skillsMatrix, seniorityEsperado, 'Analista', evalArea);
+    const radarDataHard = transformarARadarData(evalsHard, skillsMatrix, seniorityEsperado, evalArea);
+    const radarDataSoft = transformarARadarData(evalsSoft, skillsMatrix, seniorityEsperado, evalArea);
 
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
     const liderUser = users.find(u => u.email === liderEmail);
     const liderNombre = liderUser?.nombre || liderEmail || 'No asignado';
 
-    const periodoLabel = 'S Actual';
+    const periodoLabel = (() => {
+      const fechas = evalsPersona.map(e => new Date(e.fecha)).filter(f => !isNaN(f.getTime()));
+      if (fechas.length === 0) return 'S Actual';
+      const min = new Date(Math.min(...fechas.map(f => f.getTime())));
+      const max = new Date(Math.max(...fechas.map(f => f.getTime())));
+      const fmt = (d: Date) => d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+      return min.getMonth() === max.getMonth() && min.getFullYear() === max.getFullYear()
+        ? fmt(max)
+        : `${fmt(min)} — ${fmt(max)}`;
+    })();
 
     let evolucion: PDFReporteData['evolucion'] = undefined;
     const comp = comparePersonaBetweenPeriods(allEvalsPersona);
@@ -421,11 +507,11 @@ export default function Dashboard() {
   };
 
   // ===== DESCARGAR PDF =====
-  const handleDescargarPDF = () => {
+  const handleDescargarPDF = async () => {
     const result = buildPDFData();
     if (!result) return;
 
-    const pdf = generarPDFIndividual(result.pdfData);
+    const pdf = await generarPDFIndividual(result.pdfData);
     pdf.save(result.nombreArchivo);
     setShowPDFModal(false);
     setComentarioRRHH('');
@@ -456,7 +542,7 @@ export default function Dashboard() {
     setEmailResultado(null);
 
     try {
-      const pdf = generarPDFIndividual(result.pdfData);
+      const pdf = await generarPDFIndividual(result.pdfData);
       const pdfBase64 = pdfToBase64(pdf);
 
       const cuerpoHTML = generarCuerpoEmail(
@@ -501,22 +587,46 @@ export default function Dashboard() {
     }
   };
 
-  const handlePrevAreaLider = () => {
-    setHardSkillAreaIndexLider((prev) => (prev === 0 ? hardSkillAreasLider.length - 1 : prev - 1));
-  };
+  // Handlers de carrusel (sin uso actualmente, se reactivan si se vuelve a usar carrusel de áreas)
 
-  const handleNextAreaLider = () => {
-    setHardSkillAreaIndexLider((prev) => (prev === hardSkillAreasLider.length - 1 ? 0 : prev + 1));
-  };
+  // Mostrar AdminDashboard si está activado y el usuario es RRHH o Director
+  if (showAdmin && (currentUser?.rol === 'RRHH' || currentUser?.rol === 'Director')) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        {/* Header con botón de regreso */}
+        <header className="bg-white shadow-sm border-b border-stone-100">
+          <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">⚙️ Configuraciones</h1>
+                <p className="text-sm text-stone-500">{currentUser.nombre} · {currentUser.rol}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAdmin(false)}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
+                >
+                  ← Volver al Dashboard
+                </button>
+                <button
+                  onClick={logout}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
 
-  const handlePrevAreaAnalista = () => {
-    setHardSkillAreaIndexAnalista((prev) => (prev === 0 ? hardSkillAreasAnalista.length - 1 : prev - 1));
-  };
+        <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <AdminDashboard />
+        </main>
+      </div>
+    );
+  }
 
-  const handleNextAreaAnalista = () => {
-    setHardSkillAreaIndexAnalista((prev) => (prev === hardSkillAreasAnalista.length - 1 ? 0 : prev + 1));
-  };
-
+  // Dashboard normal
   return (
     <div className="min-h-screen bg-stone-50">
       <OnboardingTooltip
@@ -537,26 +647,56 @@ export default function Dashboard() {
         }}
       />
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-stone-100">
+      <header className="bg-brand-surface shadow-card border-b border-brand-border">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Dashboard RRHH</h1>
-              <p className="text-sm text-stone-500">
+              <h1 className="text-2xl font-bold text-brand-t1">Dashboard RRHH</h1>
+              <p className="text-sm text-brand-t2">
                 {currentUser.nombre} · {currentUser.rol} · {currentUser.area}
               </p>
             </div>
-            <button
-              onClick={logout}
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
-            >
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Cerrar Sesión
-              </span>
-            </button>
+            <div className="flex gap-2 items-center">
+              {/* Toggle tema */}
+              <button
+                onClick={toggleDark}
+                className="w-9 h-9 rounded-xl border border-brand-border bg-brand-surface2 flex items-center justify-center text-brand-t2 hover:text-brand-t1 transition-all"
+                title={dark ? 'Modo claro' : 'Modo oscuro'}
+              >
+                {dark ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
+              {(currentUser?.rol === 'RRHH' || currentUser?.rol === 'Director') && (
+                <button
+                  onClick={() => setShowAdmin(true)}
+                  className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Configuraciones
+                </button>
+              )}
+              <button
+                onClick={logout}
+                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Cerrar Sesión
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -602,6 +742,28 @@ export default function Dashboard() {
             </button>
           )}
 
+          {/* Formulario de Evaluación - Todos los roles */}
+          <button
+            onClick={() => setVista('formulario')}
+            className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+              vista === 'formulario'
+                ? 'bg-orange-600 text-white shadow-md'
+                : 'bg-white text-stone-700 hover:bg-orange-50 border border-stone-200'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              Formulario
+            </span>
+          </button>
+
+          {/* Vista Áreas — REMOVIDA del Dashboard, disponible en Métricas Generales */}
+          {/* {false && currentUser && canSeeAll(currentUser.rol) && (
+            <button className="hidden">Vista Áreas</button>
+          )} */}
+
           {/* Métricas Generales - Solo RRHH y Director */}
           {canSeeAll(currentUser.rol) && (
             <button
@@ -621,6 +783,9 @@ export default function Dashboard() {
             </button>
           )}
         </div>
+
+        {/* Vista Formulario - Todos los roles */}
+        {vista === 'formulario' && <FormularioView />}
 
         {/* Vista de Mi Equipo (Solo Lider) */}
         {vista === 'equipo' && currentUser.rol === 'Lider' ? (
@@ -649,6 +814,229 @@ export default function Dashboard() {
           </div>
         ) : null}
 
+        {/* Vista Áreas */}
+        {vista === 'areas' && canSeeAll(currentUser.rol) && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-slate-900">Métricas por Área</h2>
+              <span className="text-sm text-stone-500">{areaStats.length} área{areaStats.length !== 1 ? 's' : ''} con evaluaciones</span>
+            </div>
+
+            {areaStats.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-2xl border border-stone-200">
+                <p className="text-stone-500 text-lg">No hay datos de evaluaciones aún</p>
+              </div>
+            ) : (
+              <>
+              {/* Grid de cards por área */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {areaStats.map(area => {
+                  const general = area.promedioGeneral ?? 0;
+                  const pct = Math.round((general / 5) * 100);
+                  const colorBar = general >= 4 ? 'bg-emerald-500' : general >= 3 ? 'bg-orange-400' : 'bg-red-400';
+                  const colorText = general >= 4 ? 'text-emerald-600' : general >= 3 ? 'text-orange-500' : 'text-red-500';
+                  const isExpanded = expandedArea === area.nombre;
+                  return (
+                    <div
+                      key={area.nombre}
+                      className={`bg-white rounded-2xl border shadow-sm p-6 space-y-4 cursor-pointer transition-all ${
+                        isExpanded ? 'border-orange-300 ring-2 ring-orange-200 shadow-md' : 'border-stone-200 hover:shadow-md hover:border-orange-200'
+                      }`}
+                      onClick={() => {
+                        setExpandedArea(isExpanded ? null : area.nombre);
+                        setExpandedAreaRadar(null);
+                      }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-lg leading-tight">{area.nombre}</h3>
+                          <p className="text-sm text-stone-500 mt-0.5">
+                            {area.cantPersonas} persona{area.cantPersonas !== 1 ? 's' : ''} evaluada{area.cantPersonas !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-2xl font-extrabold ${colorText}`}>
+                            {general > 0 ? general.toFixed(1) : '—'}
+                          </span>
+                          <svg className={`w-4 h-4 text-stone-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Barra promedio general */}
+                      <div>
+                        <div className="flex justify-between text-xs font-medium text-stone-500 mb-1">
+                          <span>Promedio General</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${colorBar}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Auto vs Jefe */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-blue-50 rounded-xl p-3 text-center">
+                          <p className="text-xs font-semibold text-blue-600 mb-1">Autoevaluación</p>
+                          <p className="text-xl font-bold text-blue-700">
+                            {area.promedioAuto !== null ? area.promedioAuto.toFixed(1) : '—'}
+                          </p>
+                        </div>
+                        <div className="bg-orange-50 rounded-xl p-3 text-center">
+                          <p className="text-xs font-semibold text-orange-600 mb-1">Evaluación Jefe</p>
+                          <p className="text-xl font-bold text-orange-700">
+                            {area.promedioJefe !== null ? area.promedioJefe.toFixed(1) : '—'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Hard vs Soft */}
+                      {(area.promedioHard !== null || area.promedioSoft !== null) && (
+                        <div className="border-t border-stone-100 pt-3 grid grid-cols-2 gap-3">
+                          <div className="text-center">
+                            <p className="text-xs text-stone-400 font-medium mb-0.5">Hard Skills</p>
+                            <p className="text-base font-bold text-slate-700">
+                              {area.promedioHard !== null ? area.promedioHard.toFixed(1) : '—'}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-stone-400 font-medium mb-0.5">Soft Skills</p>
+                            <p className="text-base font-bold text-slate-700">
+                              {area.promedioSoft !== null ? area.promedioSoft.toFixed(1) : '—'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Brecha auto-jefe */}
+                      {area.promedioAuto !== null && area.promedioJefe !== null && (
+                        <div className="border-t border-stone-100 pt-3">
+                          <p className="text-xs text-stone-500 font-medium">
+                            Brecha auto → jefe:{' '}
+                            <span className={`font-bold ${
+                              area.promedioJefe - area.promedioAuto > 0
+                                ? 'text-emerald-600'
+                                : area.promedioJefe - area.promedioAuto < 0
+                                ? 'text-red-500'
+                                : 'text-stone-400'
+                            }`}>
+                              {area.promedioJefe - area.promedioAuto > 0 ? '+' : ''}
+                              {(area.promedioJefe - area.promedioAuto).toFixed(2)}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+
+                      {!isExpanded && (
+                        <p className="text-xs text-orange-500 font-semibold text-center pt-1">Ver desglose por persona →</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Panel de desglose del área expandida */}
+              {expandedArea && (
+                <div className="bg-white rounded-2xl border border-orange-200 shadow-md p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900">
+                      Área: <span className="text-orange-600">{expandedArea}</span>
+                    </h3>
+                    <button
+                      onClick={() => { setExpandedArea(null); setExpandedAreaRadar(null); }}
+                      className="p-1.5 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-stone-600 transition"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Tabla de personas del área */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b-2 border-stone-200">
+                          <th className="text-left p-3 font-bold text-stone-700">Nombre</th>
+                          <th className="text-center p-3 font-bold text-stone-700">Auto</th>
+                          <th className="text-center p-3 font-bold text-stone-700">Jefe</th>
+                          <th className="text-center p-3 font-bold text-stone-700">Final</th>
+                          <th className="text-center p-3 font-bold text-stone-700">Brecha</th>
+                          <th className="text-center p-3 font-bold text-stone-700">Pentágono</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {personasAreaExpandida.map(p => {
+                          const pctFinal = Math.round((p.promedioFinal / 5) * 100);
+                          const colorFinal = p.promedioFinal >= 4 ? 'text-emerald-600' : p.promedioFinal >= 3 ? 'text-orange-500' : 'text-red-500';
+                          const brechaAlta = p.brecha !== null && p.brecha > 1;
+                          const isSelected = expandedAreaRadar === p.email;
+                          return (
+                            <tr key={p.email} className={`border-b border-stone-100 hover:bg-orange-50 transition ${isSelected ? 'bg-orange-50 ring-2 ring-inset ring-orange-200' : ''}`}>
+                              <td className="p-3 font-semibold text-slate-900">{p.nombre}</td>
+                              <td className="text-center p-3 text-blue-600 font-medium">
+                                {p.promedioAuto !== null ? p.promedioAuto.toFixed(2) : '—'}
+                              </td>
+                              <td className="text-center p-3 text-orange-600 font-medium">
+                                {p.promedioJefe !== null ? p.promedioJefe.toFixed(2) : '—'}
+                              </td>
+                              <td className="text-center p-3">
+                                <div className="flex items-center gap-2 justify-center">
+                                  <span className={`font-bold ${colorFinal}`}>{p.promedioFinal.toFixed(2)}</span>
+                                  <div className="w-16 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full bg-orange-400" style={{ width: `${pctFinal}%` }} />
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="text-center p-3">
+                                {p.brecha !== null ? (
+                                  <span className={`font-bold text-xs px-2 py-1 rounded-full ${brechaAlta ? 'bg-red-100 text-red-700' : 'bg-stone-100 text-stone-600'}`}>
+                                    {brechaAlta ? '⚠ ' : ''}{p.brecha.toFixed(2)}
+                                  </span>
+                                ) : '—'}
+                              </td>
+                              <td className="text-center p-3">
+                                <button
+                                  onClick={() => setExpandedAreaRadar(isSelected ? null : p.email)}
+                                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                                    isSelected
+                                      ? 'bg-orange-500 text-white'
+                                      : 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200'
+                                  }`}
+                                >
+                                  {isSelected ? 'Ocultar' : 'Ver'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Radar de persona seleccionada en área */}
+                  {expandedAreaRadar && (() => {
+                    const persona = personasAreaExpandida.find(p => p.email === expandedAreaRadar);
+                    const userRol = users.find(u => u.email === expandedAreaRadar)?.rol;
+                    return persona ? (
+                      <PersonaRadarPanel
+                        email={expandedAreaRadar}
+                        nombre={persona.nombre}
+                        area={expandedArea}
+                        skillsMatrix={skillsMatrix}
+                        rolObjetivo={userRol === 'Lider' ? 'LIDER' : 'ANALISTA'}
+                        onClose={() => setExpandedAreaRadar(null)}
+                      />
+                    ) : null;
+                  })()}
+                </div>
+              )}
+              </>
+            )}
+          </div>
+        )}
         {/* Vista Individual */}
         {vista === 'individual' && (
           <>
@@ -791,501 +1179,34 @@ export default function Dashboard() {
             </div>
             )}
 
-            {/* Métricas */}
-            {filteredEvaluations.length > 0 && (
-              <div data-onboarding="dashboard-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-                  <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
-                  <p className="text-4xl font-bold text-slate-900">{promedioGeneral.toFixed(2)}</p>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-                  <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Alcanzado</p>
-                  <p className="text-2xl font-bold text-orange-600">{seniorityAlcanzado}</p>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-                  <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Esperado</p>
-                  <p className="text-2xl font-bold text-slate-700">{seniorityEsperado}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Botón exportar PDF / Enviar email (solo con persona seleccionada) */}
-            {selectedEmail && mostrarEvaluado && filteredEvaluations.length > 0 && canSeeAll(currentUser.rol) && (
-              <div className="mb-6 flex justify-end">
-                <button
-                  onClick={() => setShowPDFModal(true)}
-                  className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Descargar / Enviar Reporte
-                </button>
-              </div>
-            )}
-
-            {/* Dumbbell Chart - Brecha Auto vs Jefe (solo con persona seleccionada) */}
-            {selectedEmail && (
-              <div data-onboarding="dashboard-dumbbell">
-              <DumbbellChart
-                data={dumbbellData}
-                title={`Brecha Auto vs Lider${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
-              />
-              </div>
-            )}
-
-            {/* Evolución Semestral - Solo mostrar si hay más de 1 semestre */}
-            {selectedEmail && evolucionData.length > 1 && (
-              <EvolucionChart
-                data={evolucionData}
-                title={`Evolución Semestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
-              />
-            )}
-
-            {/* Evolución Semestral - Solo mostrar si hay más de 1 semestre */}
-            {selectedEmail && evolucionData.length > 1 && (
-              <EvolucionChart
-                data={evolucionData}
-                title={`Evolución Semestral${mostrarEvaluado ? ` - ${mostrarEvaluado.nombre}` : ''}`}
-              />
-            )}
-
-            {/* Gráficos Radar - 4 gráficos (Hard Líder, Hard Analista, Soft Líder, Soft Analista) */}
-            {filteredEvaluations.length > 0 ? (
-              <div data-onboarding="dashboard-radar" className="flex flex-col items-center gap-8 max-w-7xl mx-auto">
-                
-                {/* ===== HARD SKILLS LÍDER ===== */}
-                {radarDataHardLider.length > 0 && (!selectedFormulario || selectedFormulario === 'LIDER') && (
-                  <div className="space-y-4 w-full">
-                    <div className="flex items-center justify-center gap-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                          </svg>
-                        </div>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                          Hard Skills - Líder
-                        </span>
-                      </div>
-                      
-                      {/* Carrusel de Áreas para Hard Skills Líder */}
-                      {hardSkillAreasLider.length > 1 && (
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={handlePrevAreaLider}
-                            className="w-8 h-8 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 hover:border-orange-300 transition flex items-center justify-center group"
-                            aria-label="Área anterior"
-                          >
-                            <svg className="w-4 h-4 text-stone-400 group-hover:text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                          </button>
-                          
-                          <div className="flex flex-col items-center min-w-[120px]">
-                            <span className="text-xs font-semibold text-slate-700 truncate max-w-[120px]">
-                              {hardSkillAreasLider[hardSkillAreaIndexLider]}
-                            </span>
-                            <div className="flex gap-1 mt-1">
-                              {hardSkillAreasLider.map((_, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`h-1 rounded-full transition-all ${
-                                    idx === hardSkillAreaIndexLider
-                                      ? 'w-6 bg-orange-500'
-                                      : 'w-1.5 bg-stone-200'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <button
-                            onClick={handleNextAreaLider}
-                            className="w-8 h-8 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 hover:border-orange-300 transition flex items-center justify-center group"
-                            aria-label="Área siguiente"
-                          >
-                            <svg className="w-4 h-4 text-stone-400 group-hover:text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Layout: Pentágono + Análisis al costado */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Pentágono */}
-                      <div className="lg:col-span-2">
-                        <RadarChart
-                          data={radarDataHardLider}
-                          title={hardSkillAreasLider.length > 0 ? `${hardSkillAreasLider[hardSkillAreaIndexLider]} - Líder` : 'Hard Skills Líder'}
-                        />
-                      </div>
-                      
-                      {/* Análisis al costado */}
-                      {selectedEmail && barrasComparacion.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                              </svg>
-                              Mejoras Destacadas
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora > 0.3 && s.tipo === 'HARD')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'HARD').length === 0 && (
-                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                              </svg>
-                              Áreas de Atención
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora < -0.1 && s.tipo === 'HARD')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'HARD').length === 0 && (
-                                <p className="text-xs text-green-600 font-semibold">Todo bien! 🎉</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+            {/* Panel de desempeño individual — usa el mismo componente que el Líder */}
+            {selectedEmail && mostrarEvaluado && (
+              <>
+                {/* Botón PDF solo si hay evaluaciones */}
+                {canSeeAll(currentUser.rol) && visibleEvaluations.some(e => e.evaluadoEmail === selectedEmail) && (
+                  <div className="mb-4 flex justify-end">
+                    <button
+                      onClick={() => setShowPDFModal(true)}
+                      className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl transition-all hover:shadow-md font-semibold text-sm flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Descargar / Enviar Reporte
+                    </button>
                   </div>
                 )}
-
-                {/* ===== HARD SKILLS ANALISTA ===== */}
-                {radarDataHardAnalista.length > 0 && (!selectedFormulario || selectedFormulario === 'ANALISTA') && (
-                  <div className="space-y-4 w-full">
-                    <div className="flex items-center justify-center gap-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                          </svg>
-                        </div>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                          Hard Skills - Analista
-                        </span>
-                      </div>
-                      
-                      {/* Carrusel de Áreas para Hard Skills Analista */}
-                      {hardSkillAreasAnalista.length > 1 && (
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={handlePrevAreaAnalista}
-                            className="w-8 h-8 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 hover:border-blue-300 transition flex items-center justify-center group"
-                            aria-label="Área anterior"
-                          >
-                            <svg className="w-4 h-4 text-stone-400 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                          </button>
-                          
-                          <div className="flex flex-col items-center min-w-[120px]">
-                            <span className="text-xs font-semibold text-blue-700 truncate max-w-[120px]">
-                              {hardSkillAreasAnalista[hardSkillAreaIndexAnalista]}
-                            </span>
-                            <div className="flex gap-1 mt-1">
-                              {hardSkillAreasAnalista.map((_, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`h-1 rounded-full transition-all ${
-                                    idx === hardSkillAreaIndexAnalista
-                                      ? 'w-6 bg-blue-500'
-                                      : 'w-1.5 bg-stone-200'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <button
-                            onClick={handleNextAreaAnalista}
-                            className="w-8 h-8 rounded-lg bg-white border border-stone-200 hover:bg-stone-50 hover:border-blue-300 transition flex items-center justify-center group"
-                            aria-label="Área siguiente"
-                          >
-                            <svg className="w-4 h-4 text-stone-400 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Layout: Pentágono + Análisis al costado */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Pentágono */}
-                      <div className="lg:col-span-2">
-                        <RadarChart
-                          data={radarDataHardAnalista}
-                          title={hardSkillAreasAnalista.length > 0 ? `${hardSkillAreasAnalista[hardSkillAreaIndexAnalista]} - Analista` : 'Hard Skills Analista'}
-                        />
-                      </div>
-                      
-                      {/* Análisis al costado */}
-                      {selectedEmail && barrasComparacion.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                              </svg>
-                              Mejoras Destacadas
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora > 0.3 && s.tipo === 'HARD')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'HARD').length === 0 && (
-                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                              </svg>
-                              Áreas de Atención
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora < -0.1 && s.tipo === 'HARD')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'HARD').length === 0 && (
-                                <p className="text-xs text-green-600 font-semibold">Todo bien! 🎉</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* ===== SOFT SKILLS LÍDER ===== */}
-                {radarDataSoftLider.length > 0 && (!selectedFormulario || selectedFormulario === 'LIDER') && (
-                  <div className="space-y-4 w-full">
-                    <div className="flex items-center justify-center gap-2 px-4">
-                      <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
-                        Soft Skills - Líder
-                      </span>
-                    </div>
-                    
-                    {/* Layout: Pentágono + Análisis al costado */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Pentágono */}
-                      <div className="lg:col-span-2">
-                        <RadarChart
-                          data={radarDataSoftLider}
-                          title={mostrarEvaluado ? `${mostrarEvaluado.nombre} - Soft Skills Líder` : 'Soft Skills Líder'}
-                        />
-                      </div>
-                      
-                      {/* Análisis al costado */}
-                      {selectedEmail && barrasComparacion.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                              </svg>
-                              Mejoras Destacadas
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora > 0.3 && s.tipo === 'SOFT')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'SOFT').length === 0 && (
-                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                              </svg>
-                              Áreas de Atención
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora < -0.1 && s.tipo === 'SOFT')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'SOFT').length === 0 && (
-                                <p className="text-xs text-green-600 font-semibold">Todo bien! 🎉</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ===== SOFT SKILLS ANALISTA ===== */}
-                {radarDataSoftAnalista.length > 0 && (!selectedFormulario || selectedFormulario === 'ANALISTA') && (
-                  <div className="space-y-4 w-full">
-                    <div className="flex items-center justify-center gap-2 px-4">
-                      <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-100">
-                        Soft Skills - Analista
-                      </span>
-                    </div>
-                    
-                    {/* Layout: Pentágono + Análisis al costado */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      {/* Pentágono */}
-                      <div className="lg:col-span-2">
-                        <RadarChart
-                          data={radarDataSoftAnalista}
-                          title={mostrarEvaluado ? `${mostrarEvaluado.nombre} - Soft Skills Analista` : 'Soft Skills Analista'}
-                        />
-                      </div>
-                      
-                      {/* Análisis al costado */}
-                      {selectedEmail && barrasComparacion.length > 0 && (
-                        <div className="space-y-4">
-                          <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                            <p className="text-xs font-semibold text-green-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                              </svg>
-                              Mejoras Destacadas
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora > 0.3 && s.tipo === 'SOFT')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-green-600 whitespace-nowrap">+{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora > 0.3 && s.tipo === 'SOFT').length === 0 && (
-                                <p className="text-xs text-stone-500">Sin mejoras significativas</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                            <p className="text-xs font-semibold text-red-700 mb-3 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                              </svg>
-                              Áreas de Atención
-                            </p>
-                            <div className="space-y-2">
-                              {barrasComparacion
-                                .filter(s => s.mejora < -0.1 && s.tipo === 'SOFT')
-                                .slice(0, 3)
-                                .map((s, idx) => (
-                                  <div key={idx} className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-stone-700 line-clamp-2" title={s.skillCompleto}>
-                                      {s.skillCompleto}
-                                    </span>
-                                    <span className="text-xs font-bold text-red-600 whitespace-nowrap">{s.mejora.toFixed(2)}</span>
-                                  </div>
-                                ))}
-                              {barrasComparacion.filter(s => s.mejora < -0.1 && s.tipo === 'SOFT').length === 0 && (
-                                <p className="text-xs text-green-600 font-semibold">Todo bien! 🎉</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-12 text-center">
-                <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p className="text-stone-600 text-lg font-semibold mb-2">
-                  No hay evaluaciones para mostrar
-                </p>
-                <p className="text-stone-500 text-sm">
-                  Seleccioná un área o evaluado para ver los resultados
-                </p>
-              </div>
+                <MiDesempenoPanel
+                  evaluaciones={visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail)}
+                  skillsMatrix={skillsMatrix}
+                  persona={{
+                    email: selectedEmail,
+                    nombre: mostrarEvaluado.nombre,
+                    area: visibleEvaluations.find(e => e.evaluadoEmail === selectedEmail)?.area || ''
+                  }}
+                  titulo={mostrarEvaluado.nombre}
+                />
+              </>
             )}
           </>
         )}
