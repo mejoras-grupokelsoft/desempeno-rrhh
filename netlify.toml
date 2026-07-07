@@ -26,6 +26,7 @@
 # Desactivar escaneo para variables VITE_ que son públicas del frontend
 # Estas variables DEBEN estar en el bundle de JavaScript para que el frontend funcione
 [build.environment]
+  NODE_VERSION = "20"
   SECRETS_SCAN_OMIT_KEYS = "VITE_GOOGLE_CLIENT_ID,VITE_GOOGLE_SCRIPT_URL,VITE_APP_VERSION,VITE_APP_TITLE,VITE_API_TIMEOUT,VITE_ENABLE_DEBUG"
 
 # Redirecciones para React Router
