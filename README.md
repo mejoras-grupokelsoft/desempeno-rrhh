@@ -1,75 +1,83 @@
-# React + TypeScript + Vite
+# Dashboard de Evaluación de Desempeño — RRHH
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard serverless para la gestión y visualización de evaluaciones de desempeño por competencias (Hard Skills y Soft Skills), con vistas diferenciadas por rol y evolución semestral.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Capa | Tecnología |
+|---|---|
+| Frontend | React 18 + TypeScript + Vite |
+| Estilos | Tailwind CSS |
+| Gráficos | Recharts (radar, líneas, barras) |
+| Base de datos | Supabase (PostgreSQL) |
+| Autenticación | Google OAuth + soft auth por email |
+| Deploy | Netlify |
 
-## React Compiler
+## Funcionalidades principales
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- **Vistas por rol**: RRHH, Director, Líder y Analista con permisos diferenciados
+- **Evaluación por competencias**: Hard Skills y Soft Skills con puntaje 1–5
+- **Pentágonos de radar**: Autoevaluación + Evaluación Jefe + Promedio + Esperado superpuestos
+- **Evolución semestral**: Gráfico de barras histórico + líneas Hard/Soft comparando los dos últimos semestres
+- **Análisis de brechas**: Skills que mejoraron, se mantuvieron o bajaron entre períodos
+- **Seniority dinámico**: Cálculo automático de nivel alcanzado vs esperado
+- **Exportación PDF**: Reporte individual por persona
+- **Formulario de evaluación**: Integrado para autoevaluación y evaluación de equipo
 
-Note: This will impact Vite dev & build performances.
+## Estructura del proyecto
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+├── components/         # Componentes de UI (Dashboard, vistas por rol, gráficos)
+├── context/            # AppContext (usuarios, evaluaciones, skills matrix)
+├── hooks/              # useEvaluations, useTeamAccess
+├── lib/                # supabase.ts, supabaseQueries.ts, adapters.ts
+├── types/              # Interfaces TypeScript (Evaluation, User, SkillMatrix...)
+└── utils/              # calculations.ts, dateUtils.ts, filters.ts, pdfGenerator.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Modelo de datos (Supabase)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+evaluations          → registro de evaluación por persona y período
+  └── responses      → respuestas por pregunta
+        └── questions → preguntas mapeadas a skills
+              └── skills → catálogo de habilidades (HARD / SOFT)
+
+users                → empleados con rol y área
+skills_matrix        → puntaje esperado por skill, seniority y área
+areas                → áreas de la empresa
+```
+
+## Roles y permisos
+
+| Rol | Puede ver |
+|---|---|
+| RRHH | Todo — todas las áreas y personas |
+| Director | Todo — solo lectura |
+| Líder | Su área + su propio desempeño |
+| Analista | Solo su propio desempeño |
+
+## Variables de entorno
+
+Crear un archivo `.env` en la raíz (nunca commitear):
+
+```env
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
+VITE_GOOGLE_SCRIPT_URL=https://script.google.com/macros/s/.../exec
+```
+
+## Comandos
+
+```bash
+npm install       # Instalar dependencias
+npm run dev       # Servidor de desarrollo (localhost:5173)
+npm run build     # Build de producción
+npm run preview   # Preview del build
+```
+
+## Deploy
+
+El proyecto se despliega automáticamente en Netlify desde la rama `main`. Las variables de entorno se configuran en el panel de Netlify UI.
