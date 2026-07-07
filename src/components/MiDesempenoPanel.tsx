@@ -1,12 +1,11 @@
 // src/components/MiDesempenoPanel.tsx
 // Panel de "Mi Desempeño" reutilizable para Lider, Director (Analista individual), etc.
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { Evaluation, User } from '../types';
-import type { Seniority } from '../types';
-import { calcularSeniorityAlcanzado, transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
-import { comparePersonaBetweenPeriods, agruparPorSemestre } from '../utils/dateUtils';
-import { fetchPersonaSkillAverages } from '../lib/supabaseQueries';
+import type { Evaluation } from '../types';
+import type { Seniority, RadarDataPoint } from '../types';
+import { calcularSeniorityAlcanzado, calcularPromedioGeneral } from '../utils/calculations';
+import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
 import RadarChart from './RadarChart';
 
 interface MiDesempenoPanelProps {
@@ -25,22 +24,72 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
 
   const area = persona.area || '';
 
-  const miRadarDataHard = useMemo(() => {
-    const hardSkills = evaluaciones.filter(e => e.skillTipo === 'HARD');
-    return transformarARadarData(hardSkills, skillsMatrix, seniorityEsperado, area);
-  }, [evaluaciones, skillsMatrix, seniorityEsperado, area]);
+  const rol = persona.rol || 'ANALISTA';
 
-  const miRadarDataSoft = useMemo(() => {
-    const softSkills = evaluaciones.filter(e => e.skillTipo === 'SOFT');
-    return transformarARadarData(softSkills, skillsMatrix, seniorityEsperado, area);
-  }, [evaluaciones, skillsMatrix, seniorityEsperado, area]);
+  // Radar data computado inline (evita depender de la firma de transformarARadarData que varía entre versiones)
+  const miRadarDataHard = useMemo((): RadarDataPoint[] => {
+    const skillMap = new Map<string, { auto: number[]; jefe: number[] }>();
+    evaluaciones.filter(e => e.skillTipo === 'HARD').forEach(e => {
+      if (!e.skillNombre) return;
+      if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { auto: [], jefe: [] });
+      const d = skillMap.get(e.skillNombre)!;
+      if (e.tipoEvaluador === 'AUTO') d.auto.push(e.puntaje);
+      else d.jefe.push(e.puntaje);
+    });
+    return Array.from(skillMap.entries()).map(([skill, d]) => {
+      const auto = d.auto.length > 0 ? d.auto.reduce((a, b) => a + b, 0) / d.auto.length : 0;
+      const jefe = d.jefe.length > 0 ? d.jefe.reduce((a, b) => a + b, 0) / d.jefe.length : 0;
+      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+      const esperado = skillsMatrix.find(m => m.skillNombre === skill && m.area === area)?.valorEsperado ?? 3;
+      return { skill, auto, jefe, promedio: parseFloat(promedio.toFixed(2)), esperado };
+    });
+  }, [evaluaciones, skillsMatrix, rol, area]);
+
+  const miRadarDataSoft = useMemo((): RadarDataPoint[] => {
+    const skillMap = new Map<string, { auto: number[]; jefe: number[] }>();
+    evaluaciones.filter(e => e.skillTipo === 'SOFT').forEach(e => {
+      if (!e.skillNombre) return;
+      if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { auto: [], jefe: [] });
+      const d = skillMap.get(e.skillNombre)!;
+      if (e.tipoEvaluador === 'AUTO') d.auto.push(e.puntaje);
+      else d.jefe.push(e.puntaje);
+    });
+    return Array.from(skillMap.entries()).map(([skill, d]) => {
+      const auto = d.auto.length > 0 ? d.auto.reduce((a, b) => a + b, 0) / d.auto.length : 0;
+      const jefe = d.jefe.length > 0 ? d.jefe.reduce((a, b) => a + b, 0) / d.jefe.length : 0;
+      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+      const esperado = skillsMatrix.find(m => m.skillNombre === skill && m.area === area)?.valorEsperado ?? 3;
+      return { skill, auto, jefe, promedio: parseFloat(promedio.toFixed(2)), esperado };
+    });
+  }, [evaluaciones, skillsMatrix, rol, area]);
 
   const allRadarData = useMemo(() => [...miRadarDataHard, ...miRadarDataSoft], [miRadarDataHard, miRadarDataSoft]);
   const miPromedioGeneral = useMemo(() => calcularPromedioGeneral(allRadarData), [allRadarData]);
   const miSeniorityAlcanzado = useMemo(() => calcularSeniorityAlcanzado(miPromedioGeneral), [miPromedioGeneral]);
 
   const miComparacion = useMemo(() => comparePersonaBetweenPeriods(evaluaciones), [evaluaciones]);
-  const evolucionHistorica = useMemo(() => agruparPorSemestre(evaluaciones), [evaluaciones]);
+
+  // agruparPorSemestre implementado inline (no disponible en todos los entornos de build)
+  const evolucionHistorica = useMemo(() => {
+    const semestreMap = new Map<string, { auto: number[]; jefe: number[] }>();
+    evaluaciones.forEach(e => {
+      const d = new Date(e.fecha);
+      const key = `${d.getFullYear()}-S${Math.floor(d.getMonth() / 6) + 1}`;
+      if (!semestreMap.has(key)) semestreMap.set(key, { auto: [], jefe: [] });
+      const data = semestreMap.get(key)!;
+      if (e.tipoEvaluador === 'AUTO') data.auto.push(e.puntaje);
+      else data.jefe.push(e.puntaje);
+    });
+    return Array.from(semestreMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([semestre, data]) => {
+        const auto = data.auto.length > 0 ? data.auto.reduce((a, b) => a + b, 0) / data.auto.length : 0;
+        const jefe = data.jefe.length > 0 ? data.jefe.reduce((a, b) => a + b, 0) / data.jefe.length : 0;
+        const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
+        return { semestre, promedio: Math.round(promedio * 100) / 100, auto: Math.round(auto * 100) / 100, jefe: Math.round(jefe * 100) / 100 };
+      });
+  }, [evaluaciones]);
+
   const esHistorico = evolucionHistorica.length > 2;
 
   // Seniority esperado: siguiente al del semestre anterior
@@ -79,56 +128,78 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
     });
   }, [miComparacion]);
 
-  // Datos de line chart cargados desde Supabase (responses → questions → skills)
-  type LinePoint = {
-    skill: string;
-    skillCompleto: string;
-    'Semestre Anterior': number;
-    'Semestre Actual': number;
-    tipo: string;
-    labelAnterior?: string;
-    labelActual?: string;
-  };
-  const [lineChartData, setLineChartData] = useState<LinePoint[]>([]);
+  // Datos para gráfico de línea por skill (usa skillNombre de las evaluaciones)
+  const lineChartData = useMemo(() => {
+    type LinePoint = {
+      skill: string; skillCompleto: string;
+      'Semestre Anterior': number; 'Semestre Actual': number;
+      tipo: string; labelAnterior?: string; labelActual?: string;
+    };
 
-  useEffect(() => {
-    if (!persona.email) return;
-    if (evolucionHistorica.length < 2) {
-      setLineChartData([]);
-      return;
-    }
-
-    const semestres = evolucionHistorica.map(s => s.semestre);
-    const ultimoSem = semestres[semestres.length - 1];
-    const penultimoSem = semestres[semestres.length - 2];
-
-    Promise.all([
-      fetchPersonaSkillAverages(persona.email, [penultimoSem], persona.area || undefined),
-      fetchPersonaSkillAverages(persona.email, [ultimoSem], persona.area || undefined),
-    ]).then(([anterior, actual]) => {
-      const allSkills = new Set([
-        ...anterior.map(s => s.skill_nombre),
-        ...actual.map(s => s.skill_nombre),
-      ]);
-      const data: LinePoint[] = Array.from(allSkills)
+    const buildFromPeriods = (
+      periodoAnterior: { skill: string; tipo: string; promedio: number }[],
+      periodoActual: { skill: string; tipo: string; promedio: number }[],
+      labelAnt?: string, labelAct?: string,
+    ): LinePoint[] => {
+      const allSkills = new Set([...periodoAnterior.map(s => s.skill), ...periodoActual.map(s => s.skill)]);
+      return Array.from(allSkills)
+        .filter(skill => skill.toLowerCase() !== 'general')
         .map(skill => {
-          const ant = anterior.find(s => s.skill_nombre === skill);
-          const act = actual.find(s => s.skill_nombre === skill);
+          const ant = periodoAnterior.find(s => s.skill === skill);
+          const act = periodoActual.find(s => s.skill === skill);
           return {
             skill: skill.length > 15 ? skill.substring(0, 15) + '...' : skill,
             skillCompleto: skill,
-            'Semestre Anterior': ant?.avg_total || 0,
-            'Semestre Actual': act?.avg_total || 0,
-            tipo: ((act?.skill_tipo || ant?.skill_tipo || 'HARD') as string).toUpperCase(),
-            labelAnterior: penultimoSem,
-            labelActual: ultimoSem,
+            'Semestre Anterior': ant?.promedio || 0,
+            'Semestre Actual': act?.promedio || 0,
+            tipo: ((act?.tipo || ant?.tipo || 'HARD') as string).toUpperCase(),
+            labelAnterior: labelAnt, labelActual: labelAct,
           };
         })
         .filter(d => d['Semestre Anterior'] > 0 || d['Semestre Actual'] > 0)
         .sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
-      setLineChartData(data);
-    }).catch(err => console.error('Error fetching skill evolution data:', err));
-  }, [persona.email, persona.area, evolucionHistorica]);
+    };
+
+    const { sAnterior, sActual } = miComparacion;
+
+    // Caso 1: Hay datos en ambos semestres del calendario
+    if (sActual.length > 0 && sAnterior.length > 0) return buildFromPeriods(sAnterior, sActual);
+
+    // Caso 2: No hay semestre actual — usar los dos últimos semestres disponibles
+    if (evolucionHistorica.length >= 2) {
+      const semestres = evolucionHistorica.map(s => s.semestre);
+      const ultimoSem = semestres[semestres.length - 1];
+      const penultimoSem = semestres[semestres.length - 2];
+
+      const calcPeriod = (sem: string) => {
+        const skillMap = new Map<string, { tipo: string; autos: number[]; jefes: number[] }>();
+        evaluaciones
+          .filter(e => {
+            const d = new Date(e.fecha);
+            return `${d.getFullYear()}-S${Math.floor(d.getMonth() / 6) + 1}` === sem;
+          })
+          .forEach(e => {
+            if (!e.skillNombre || e.skillNombre.toLowerCase() === 'general') return;
+            if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { tipo: (e.skillTipo || 'HARD').toUpperCase(), autos: [], jefes: [] });
+            const entry = skillMap.get(e.skillNombre)!;
+            if (e.tipoEvaluador === 'AUTO') entry.autos.push(e.puntaje);
+            else entry.jefes.push(e.puntaje);
+          });
+        return Array.from(skillMap.entries()).map(([skill, d]) => {
+          const auto = d.autos.length > 0 ? d.autos.reduce((a, b) => a + b) / d.autos.length : 0;
+          const jefe = d.jefes.length > 0 ? d.jefes.reduce((a, b) => a + b) / d.jefes.length : 0;
+          return { skill, tipo: d.tipo, promedio: auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe) };
+        });
+      };
+
+      const periodoActual = calcPeriod(ultimoSem);
+      const periodoAnterior = calcPeriod(penultimoSem);
+      if (periodoActual.length > 0 || periodoAnterior.length > 0) {
+        return buildFromPeriods(periodoAnterior, periodoActual, penultimoSem, ultimoSem);
+      }
+    }
+    return [] as LinePoint[];
+  }, [miComparacion, evolucionHistorica, evaluaciones]);
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-sm border border-purple-200 p-6">
