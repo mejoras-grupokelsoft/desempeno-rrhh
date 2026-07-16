@@ -5,44 +5,44 @@ import type { TooltipStep } from '../components/OnboardingTooltip';
 export const dashboardSteps: TooltipStep[] = [
   {
     id: 'dashboard-tabs',
-    title: 'Pestanas de Navegacion',
+    title: 'Pestañas de Navegación',
     description:
-      'Usa estas pestanas para alternar entre la vista individual de cada persona, las metricas generales de la organizacion y la vista de equipo.',
+      'Usá estas pestañas para alternar entre la vista individual de cada persona, las métricas generales de la organización y la vista de equipo.',
     icon: '✨',
   },
   {
     id: 'dashboard-filtros',
     title: 'Panel de Filtros',
     description:
-      'Filtra por periodo, area y persona. Podes buscar empleados por nombre y seleccionar el formulario (Lider o Analista) para enfocar tu analisis.',
+      'Filtrá por período, área y persona. Podés buscar empleados por nombre y seleccionar el formulario (Líder o Analista) para enfocar tu análisis.',
     icon: '🔍',
   },
   {
     id: 'dashboard-cards',
     title: 'Tarjetas de Resumen',
     description:
-      'Estas tarjetas muestran el promedio general, seniority esperado, seniority alcanzado y el estado (Cumple/No Cumple/Supero) de la persona seleccionada.',
+      'Estas tarjetas muestran el promedio general, seniority esperado, seniority alcanzado y el estado (Cumple/No Cumple/Superó) de la persona seleccionada.',
     icon: '💡',
   },
   {
     id: 'dashboard-dumbbell',
-    title: 'Grafico de Brecha (Dumbbell)',
+    title: 'Gráfico de Brecha (Dumbbell)',
     description:
-      'Este grafico muestra la diferencia entre la autoevaluacion y la evaluacion del lider para cada skill. Cuanto mas corta la barra, mayor alineacion.',
+      'Este gráfico muestra la diferencia entre la autoevaluación y la evaluación del líder para cada skill. Cuanto más corta la barra, mayor alineación.',
     icon: '📏',
   },
   {
     id: 'dashboard-radar',
-    title: 'Graficos de Radar',
+    title: 'Gráficos de Radar',
     description:
-      'Cada pentagono superpone el valor esperado (gris), la autoevaluacion (azul), la evaluacion del jefe (naranja) y el promedio final (verde). Asi identificas brechas rapidamente.',
+      'Cada pentágono superpone el valor esperado (gris), la autoevaluación (azul), la evaluación del jefe (naranja) y el promedio final (verde). Así identificas brechas rápidamente.',
     icon: '📊',
   },
   {
     id: 'dashboard-metricas',
-    title: 'Metricas Generales',
+    title: 'Métricas Generales',
     description:
-      'Hace clic en la pestana "Metricas Generales" para ver indicadores agregados: distribucion de seniority, brechas promedio, tendencias y bandas por area.',
+      'Hacé clic en la pestaña "Métricas Generales" para ver indicadores agregados: distribución de seniority, brechas promedio, tendencias y bandas por área.',
     icon: '📈',
   },
 ];
@@ -53,38 +53,38 @@ export const liderSteps: TooltipStep[] = [
   // — Global —
   {
     id: 'lider-tabs',
-    title: 'Tu Panel de Lider',
+    title: 'Tu Panel de Líder',
     description:
-      'Tenes dos vistas: "Mi Desempeno" para revisar tus propias evaluaciones y "Mi Equipo" para ver como va tu equipo. Cambia entre ellas con estos botones.',
+      'Tenés dos vistas: "Mi Desempeño" para revisar tus propias evaluaciones y "Mi Equipo" para ver como va tu equipo. Cambia entre ellas con estos botones.',
     icon: '✨',
   },
-  // — Mi Desempeno (top → bottom) —
+  // — Mi Desempeño (top → bottom) —
   {
     id: 'lider-mi-desempeno',
-    title: 'Mis Metricas',
+    title: 'Mis Métricas',
     description:
-      'Aca ves tu promedio general, seniority alcanzado y seniority esperado de un vistazo.',
+      'Acá ves tu promedio general, seniority alcanzado y seniority esperado de un vistazo.',
     icon: '💡',
   },
   {
     id: 'lider-skills-badges',
-    title: 'Analisis de Skills',
+    title: 'Análisis de Skills',
     description:
       'Estas tarjetas te muestran que skills mejoraron, cuales bajaron y cuales mantuviste respecto al trimestre anterior. Usalo para enfocar tu desarrollo.',
     icon: '🏷️',
   },
   {
     id: 'lider-evolucion',
-    title: 'Evolucion por Trimestre',
+    title: 'Evolución por Trimestre',
     description:
-      'Este grafico de lineas compara tus puntajes del trimestre anterior vs el actual skill por skill para ver tu progreso.',
+      'Este gráfico de líneas compara tus puntajes del trimestre anterior vs el actual skill por skill para ver tu progreso.',
     icon: '📈',
   },
   {
     id: 'lider-radar',
     title: 'Mis Competencias (Radar)',
     description:
-      'Los graficos de radar muestran tus Hard y Soft Skills. Podes alternar entre una vista compacta y otra detallada con el boton "Ver detalle".',
+      'Los gráficos de radar muestran tus Hard y Soft Skills. Podés alternar entre una vista compacta y otra detallada con el botón "Ver detalle".',
     icon: '📊',
   },
   // — Mi Equipo (top → bottom) —
@@ -92,21 +92,21 @@ export const liderSteps: TooltipStep[] = [
     id: 'lider-equipo-filtros',
     title: 'Filtros de Equipo',
     description:
-      'Filtra por persona o periodo. Podes elegir periodos predefinidos o un rango de fechas personalizado para acotar los resultados.',
+      'Filtrá por persona o período. Podés elegir períodos predefinidos o un rango de fechas personalizado para acotar los resultados.',
     icon: '🔍',
   },
   {
     id: 'lider-equipo-scatter',
     title: 'Bandas de Seniority',
     description:
-      'El scatter chart compara el puntaje del Q anterior (eje X) vs el actual (eje Y). Las bandas de color indican las zonas de seniority. Puntos arriba de la diagonal estan mejorando.',
+      'El scatter chart compara el puntaje del Q anterior (eje X) vs el actual (eje Y). Las bandas de color indican las zonas de seniority. Puntos arriba de la diagonal están mejorando.',
     icon: '📈',
   },
   {
     id: 'lider-equipo-tabla',
     title: 'Tabla de Equipo',
     description:
-      'La tabla lista a cada miembro con sus promedios auto, jefe, final y la brecha (gap). Hace clic en una fila para ver el detalle de skills de esa persona.',
+      'La tabla lista a cada miembro con sus promedios auto, jefe, final y la brecha (gap). Hacé clic en una fila para ver el detalle de skills de esa persona.',
     icon: '👥',
   },
 ];
@@ -117,35 +117,35 @@ export const analistaSteps: TooltipStep[] = [
     id: 'analista-tarjetas',
     title: 'Tarjetas de Resumen',
     description:
-      'Estas cuatro tarjetas muestran tu autopuntuacion, la evaluacion de tu lider, el promedio final y el seniority que alcanzaste.',
+      'Estas cuatro tarjetas muestran tu autopuntuación, la evaluación de tu líder, el promedio final y el seniority que alcanzaste.',
     icon: '💡',
   },
   {
     id: 'analista-radar',
     title: 'Mis Competencias',
     description:
-      'Los graficos de radar muestran tus Hard y Soft Skills. Podes cambiar a la vista detallada para ver por separado la autoevaluacion y la de tu jefe.',
+      'Los gráficos de radar muestran tus Hard y Soft Skills. Podés cambiar a la vista detallada para ver por separado la autoevaluación y la de tu jefe.',
     icon: '📊',
   },
   {
     id: 'analista-evolucion',
-    title: 'Mi Evolucion',
+    title: 'Mi Evolución',
     description:
-      'El grafico de lineas muestra como cambio tu puntaje en los ultimos meses. La linea de referencia indica la meta de seniority para tu rol.',
+      'El gráfico de líneas muestra como cambió tu puntaje en los últimos meses. La línea de referencia indica la meta de seniority para tu rol.',
     icon: '📈',
   },
   {
     id: 'analista-fortalezas',
     title: 'Fortalezas y Oportunidades',
     description:
-      'Tus top 5 fortalezas (skills que superan lo esperado) y las 5 areas de mejora (skills por debajo del objetivo). Usalas para planificar tu desarrollo.',
+      'Tus top 5 fortalezas (skills que superan lo esperado) y las 5 áreas de mejora (skills por debajo del objetivo). Usalas para planificar tu desarrollo.',
     icon: '🎯',
   },
   {
     id: 'analista-feedback',
-    title: 'Feedback de tu Lider',
+    title: 'Feedback de tu Líder',
     description:
-      'Los comentarios que tu lider dejo sobre tus skills. Cada uno incluye la skill, fecha, puntaje y la observacion.',
+      'Los comentarios que tu líder dejó sobre tus skills. Cada uno incluye la skill, fecha, puntaje y la observación.',
     icon: '💬',
   },
 ];
