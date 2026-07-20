@@ -12,9 +12,13 @@ jobs:
     steps:
       - name: Ping Supabase REST API
         run: |
+          SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}"
+          ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
+          
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/users?select=id&limit=1" \
-            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}")
+            "$SUPABASE_URL/rest/v1/users?select=id&limit=1" \
+            -H "apikey: $ANON_KEY")
+          
           echo "Supabase ping status: $STATUS"
           if [ "$STATUS" != "200" ] && [ "$STATUS" != "206" ]; then
             echo "Warning: Supabase returned status $STATUS"
