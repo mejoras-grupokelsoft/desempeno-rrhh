@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { Skill } from '../../types';
+import type { Skill, Area } from '../../types';
 
 function normalizeText(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -15,6 +15,7 @@ interface SkillRow extends Skill {
 
 export default function AdminSkillsPanel() {
   const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [areasList, setAreasList] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [filter, setFilter] = useState<FilterState>('activos');
@@ -27,9 +28,10 @@ export default function AdminSkillsPanel() {
   const [filterTipo, setFilterTipo] = useState<SkillType | ''>('');
   const [filterArea, setFilterArea] = useState<string>('');
 
-  // Cargar skills
+  // Cargar skills y áreas
   useEffect(() => {
     loadSkills();
+    loadAreas();
   }, []);
 
   const loadSkills = async () => {
@@ -50,6 +52,19 @@ export default function AdminSkillsPanel() {
     }
   };
 
+  const loadAreas = async () => {
+    const { data, error: fetchError } = await supabase
+      .from('areas')
+      .select('*')
+      .order('nombre', { ascending: true });
+
+    if (fetchError) {
+      setError(fetchError.message);
+      return;
+    }
+    setAreasList((data || []) as Area[]);
+  };
+
   // Filtrar skills
   const filteredSkills = skills.filter(s => {
     const matchEstado = filter === 'activos' ? s.estado === 'activo' :
@@ -63,7 +78,12 @@ export default function AdminSkillsPanel() {
     return matchEstado && matchNombre && matchTipo && matchArea;
   });
 
-  const areasEnSkills = [...new Set(skills.map(s => s.area).filter(Boolean))] as string[];
+  // Nombres de áreas activas desde la tabla `areas`, más cualquier área ya usada
+  // en skills existentes (por si quedó inactiva o desincronizada), para no perder datos.
+  const areasDisponibles = [...new Set([
+    ...areasList.filter(a => a.activo).map(a => a.nombre),
+    ...skills.map(s => s.area).filter(Boolean) as string[],
+  ])].sort((a, b) => a.localeCompare(b));
 
   const counts = {
     activos: skills.filter(s => s.estado === 'activo').length,
@@ -240,7 +260,7 @@ export default function AdminSkillsPanel() {
           >
             <option value="">Todas las áreas</option>
             <option value="global">Global (Soft Skills)</option>
-            {areasEnSkills.map(area => (
+            {areasDisponibles.map(area => (
               <option key={area} value={area}>{area}</option>
             ))}
           </select>
@@ -364,7 +384,7 @@ export default function AdminSkillsPanel() {
       {showForm && (
         <SkillFormModal
           skill={editingSkill}
-          areas={areasEnSkills}
+          areas={areasDisponibles}
           onSave={editingSkill ? 
             (data) => handleUpdate(editingSkill.id, data) :
             handleCreate
