@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Evaluation, User, RadarDataPoint } from '../types';
-import { obtenerValorEsperado } from '../utils/calculations';
+import { obtenerValorEsperado, calcularSeniorityAlcanzado } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
 import { fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
 import { useApp } from '../context/AppContext';
@@ -149,6 +149,11 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     const vals = skillRows.map(r => r.avg_total);
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   }, [skillRows]);
+
+  // Calcular seniority alcanzado basado en el promedio ponderado
+  const seniorityAlcanzado: Seniority = useMemo(() => {
+    return calcularSeniorityAlcanzado(promedioFinal);
+  }, [promedioFinal]);
 
   // Evolución temporal (últimos 6 meses) - Solo mostrar si hay más de un periodo
   const evolucionTemporal = useMemo(() => {
@@ -438,7 +443,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               : 'bg-white text-slate-700 border border-stone-200 hover:border-green-300 hover:bg-green-50'
           }`}
         >
-          📝 Formulario
+          📝 Autoevaluación
         </button>
       </div>
 
@@ -491,6 +496,19 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               <p className="text-sm font-semibold text-stone-600">Promedio Ponderado</p>
             </div>
             <p className="text-3xl font-bold text-green-600">{promedioFinal.toFixed(2)}</p>
+          </div>
+
+          {/* Seniority Alcanzado */}
+          <div className="bg-white rounded-xl shadow-sm border border-purple-100 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-stone-600">Seniority Alcanzado</p>
+            </div>
+            <p className="text-3xl font-bold text-purple-600">{seniorityAlcanzado}</p>
           </div>
 
         </div>
