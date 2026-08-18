@@ -13,6 +13,7 @@ import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoTyp
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
 import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
+import { resolveRolObjetivo } from '../utils/puesto';
 import PersonaRadarPanel from '../components/PersonaRadarPanel';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -1019,14 +1020,14 @@ export default function Dashboard() {
                   {/* Radar de persona seleccionada en área */}
                   {expandedAreaRadar && (() => {
                     const persona = personasAreaExpandida.find(p => p.email === expandedAreaRadar);
-                    const userRol = users.find(u => u.email === expandedAreaRadar)?.rol;
+                    const userFull = users.find(u => u.email === expandedAreaRadar);
                     return persona ? (
                       <PersonaRadarPanel
                         email={expandedAreaRadar}
                         nombre={persona.nombre}
                         area={expandedArea}
                         skillsMatrix={skillsMatrix}
-                        rolObjetivo={userRol === 'Lider' ? 'LIDER' : 'ANALISTA'}
+                        rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
                         onClose={() => setExpandedAreaRadar(null)}
                       />
                     ) : null;

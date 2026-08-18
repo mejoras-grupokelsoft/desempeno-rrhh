@@ -493,6 +493,7 @@ export default function AdminQuestionsPanel() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[180px]">🔗 Skill Vinculada</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[100px]">Rango</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[120px]">Área</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[130px]">🎯 Puesto</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[100px]">Estado</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Acciones</th>
                 </tr>
@@ -542,6 +543,9 @@ export default function AdminQuestionsPanel() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {q.areaId ? areaMap[q.areaId] || q.areaId : <span className="text-gray-400 italic">Global</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {q.rolObjetivo || <span className="text-gray-400 italic">Todos</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded text-white text-sm font-semibold inline-block ${
@@ -661,6 +665,12 @@ export default function AdminQuestionsPanel() {
                     <div className="text-xs font-semibold text-gray-500">Área</div>
                     <div className="text-sm text-gray-800">
                       {q.areaId ? (areaMap[q.areaId] || q.areaId) : <span className="text-gray-400 italic">Global</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500">🎯 Puesto</div>
+                    <div className="text-sm text-gray-800">
+                      {q.rolObjetivo || <span className="text-gray-400 italic">Todos</span>}
                     </div>
                   </div>
                 </div>

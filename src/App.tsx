@@ -6,6 +6,8 @@ import MetricasLider from './components/MetricasLider';
 import MetricasAnalista from './components/MetricasAnalista';
 import { DashboardSkeleton, LiderSkeleton, AnalistaSkeleton } from './components/LoadingSkeleton';
 import ErrorBanner from './components/ErrorBanner';
+import ImpersonationBanner from './components/ImpersonationBanner';
+import type { User, Evaluation, SkillMatrix } from './types';
 
 function App() {
   const { currentUser, users, evaluations, skillsMatrix, loading, error, refetch } = useApp();
@@ -13,6 +15,42 @@ function App() {
   if (!currentUser) {
     return <Login />;
   }
+
+  return (
+    <>
+      <ImpersonationBanner />
+      <AppRoutes
+        currentUser={currentUser}
+        users={users}
+        evaluations={evaluations}
+        skillsMatrix={skillsMatrix}
+        loading={loading}
+        error={error}
+        refetch={refetch}
+      />
+    </>
+  );
+}
+
+interface AppRoutesProps {
+  currentUser: User;
+  users: User[];
+  evaluations: Evaluation[];
+  skillsMatrix: SkillMatrix[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+function AppRoutes({
+  currentUser,
+  users,
+  evaluations,
+  skillsMatrix,
+  loading,
+  error,
+  refetch,
+}: AppRoutesProps) {
 
   // Loading skeleton después de login (cargando datos del API)
   if (loading) {

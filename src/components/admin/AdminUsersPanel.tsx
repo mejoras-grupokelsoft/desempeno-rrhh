@@ -4,12 +4,13 @@ import { supabase } from '../../lib/supabaseClient';
 import { normalizeText, sanitizeEmail } from '../../utils/sanitize';
 import type { User, Area, UserRole } from '../../types';
 import { logger } from '../../utils/sanitize';
-import { changeUserRole, changeUserArea, generatePasswordResetToken } from '../../utils/userManagement';
+import { changeUserRole, changeUserArea, changeUserPuesto, generatePasswordResetToken } from '../../utils/userManagement';
 import { syncUserToTeam } from '../../lib/supabaseQueries';
+import { useApp } from '../../context/AppContext';
 
 const ROLES: UserRole[] = ['RRHH', 'Director', 'Lider', 'Analista'];
 
-const EMPTY_NEW_USER = { email: '', nombre: '', rol: 'Analista' as UserRole, area_id: '' };
+const EMPTY_NEW_USER = { email: '', nombre: '', rol: 'Analista' as UserRole, area_id: '', puesto: '' };
 
 interface BulkRow {
   email: string;
@@ -17,11 +18,13 @@ interface BulkRow {
   rol: UserRole;
   area_id: string | null;
   areaNombre: string;
+  puesto: string | null;
   valid: boolean;
   error?: string;
 }
 
 export default function AdminUsersPanel() {
+  const { startImpersonation, realUser } = useApp();
   const [users, setUsers] = useState<User[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,7 @@ export default function AdminUsersPanel() {
   const [editingUser, setEditingUser] = useState<{
     rol: UserRole;
     area_id: string | null;
+    puesto: string;
   } | null>(null);
   const [resetTokenUser, setResetTokenUser] = useState<string | null>(null);
   const [resetToken, setResetToken] = useState<string>('');
@@ -95,6 +99,7 @@ export default function AdminUsersPanel() {
     setEditingUser({
       rol: user.rol,
       area_id: user.area_id || null,
+      puesto: user.puesto || '',
     });
     setError('');
     // Scroll al row de edición después del render
@@ -133,6 +138,15 @@ export default function AdminUsersPanel() {
         const success = await changeUserArea(user.id || user.email, editingUser.area_id);
         if (!success) {
           setError('Error al cambiar el área. Verifica que seas RRHH.');
+          return;
+        }
+      }
+
+      // Cambiar puesto
+      if (editingUser.puesto.trim() !== (user.puesto || '')) {
+        const success = await changeUserPuesto(user.id || user.email, editingUser.puesto);
+        if (!success) {
+          setError('Error al cambiar el puesto. Verifica que seas RRHH.');
           return;
         }
       }
@@ -188,6 +202,7 @@ export default function AdminUsersPanel() {
         rol: newUser.rol,
         area: area?.nombre || null,
         area_id: newUser.area_id || null,
+        puesto: newUser.puesto.trim() || null,
       }]);
       if (error) { setAddError(error.message); return; }
       // Sincronizar con equipo del área automáticamente
@@ -212,9 +227,9 @@ export default function AdminUsersPanel() {
   const parseBulkText = (text: string): BulkRow[] => {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     return lines.map(line => {
-      // Soporta: email,nombre,rol,area  (rol y area opcionales)
+      // Soporta: email,nombre,rol,area,puesto  (rol, area y puesto opcionales)
       const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
-      const [rawEmail = '', rawNombre = '', rawRol = '', rawArea = ''] = parts;
+      const [rawEmail = '', rawNombre = '', rawRol = '', rawArea = '', rawPuesto = ''] = parts;
       const email = sanitizeEmail(rawEmail) || rawEmail;
       const nombre = rawNombre || email.split('@')[0];
       const rolInput = rawRol as UserRole;
@@ -229,6 +244,7 @@ export default function AdminUsersPanel() {
         rol,
         area_id: areaMatch?.id || null,
         areaNombre: areaMatch?.nombre || rawArea || '—',
+        puesto: rawPuesto.trim() || null,
         valid,
         error: !valid ? 'Email o nombre inválido' : undefined,
       };
@@ -252,6 +268,7 @@ export default function AdminUsersPanel() {
         rol: r.rol,
         area: r.area_id ? areas.find(a => a.id === r.area_id)?.nombre || null : null,
         area_id: r.area_id,
+        puesto: r.puesto,
       }));
       const { error } = await supabase
         .from('users')
@@ -324,8 +341,17 @@ export default function AdminUsersPanel() {
     return matchNombre && matchRol && matchArea;
   });
 
+  // Puestos ya usados (para autocompletar) — el puesto es libre, no una lista fija
+  const puestoSuggestions = Array.from(
+    new Set(users.map(u => u.puesto).filter((p): p is string => !!p && p.trim() !== ''))
+  ).sort();
+
   return (
     <div className="space-y-6">
+      <datalist id="puestos-sugeridos">
+        {puestoSuggestions.map(p => <option key={p} value={p} />)}
+      </datalist>
+
       <div className="flex justify-between items-center flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-slate-900">Gestión de Usuarios</h2>
         <div className="flex items-center gap-2">
@@ -396,6 +422,22 @@ export default function AdminUsersPanel() {
                   {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Puesto (opcional)
+                </label>
+                <input
+                  type="text"
+                  list="puestos-sugeridos"
+                  value={newUser.puesto}
+                  onChange={e => setNewUser({ ...newUser, puesto: e.target.value })}
+                  placeholder="ej: Líder Técnico, Desarrollador..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Determina qué preguntas ve en las evaluaciones. Si se deja vacío, se usan las preguntas genéricas de Líder/Analista.
+                </p>
+              </div>
             </div>
             {addError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">{addError}</p>}
             <div className="flex gap-2 pt-2">
@@ -427,7 +469,7 @@ export default function AdminUsersPanel() {
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
               <p className="font-semibold mb-1">Formatos aceptados:</p>
-              <p>• Columnas: <code>email, nombre, rol, area</code> (rol y area son opcionales — default: Analista / Sin área)</p>
+              <p>• Columnas: <code>email, nombre, rol, area, puesto</code> (rol, area y puesto son opcionales — default: Analista / Sin área / Sin puesto)</p>
               <p>• También acepta el CSV de <strong>PeopleForce</strong> directamente (detecta las columnas automáticamente)</p>
             </div>
             <div className="flex gap-2">
@@ -444,7 +486,7 @@ export default function AdminUsersPanel() {
               <textarea
                 value={bulkText}
                 onChange={e => { setBulkText(e.target.value); setBulkRows([]); setBulkResult(''); }}
-                placeholder={'email,nombre,rol,area\npamela.gomez@grupokelsoft.com,Pamela Gomez,Lider,Recursos Humanos'}
+                placeholder={'email,nombre,rol,area,puesto\npamela.gomez@grupokelsoft.com,Pamela Gomez,Lider,Recursos Humanos,Líder Técnico'}
                 rows={6}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -467,6 +509,7 @@ export default function AdminUsersPanel() {
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Nombre</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Rol</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Área</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600">Puesto</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-600">Estado</th>
                       </tr>
                     </thead>
@@ -477,6 +520,7 @@ export default function AdminUsersPanel() {
                           <td className="px-3 py-2">{row.nombre}</td>
                           <td className="px-3 py-2">{row.rol}</td>
                           <td className="px-3 py-2">{row.areaNombre}</td>
+                          <td className="px-3 py-2">{row.puesto || '—'}</td>
                           <td className="px-3 py-2">
                             {row.valid
                               ? <span className="text-green-600 font-semibold">✓</span>
@@ -619,13 +663,14 @@ export default function AdminUsersPanel() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[150px]">Nombre</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[100px]">Rol</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[120px]">Área</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[140px]">Puesto</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-[200px]">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                       No se encontraron usuarios con los filtros aplicados.
                     </td>
                   </tr>
@@ -692,6 +737,22 @@ export default function AdminUsersPanel() {
                         )}
                       </td>
                       <td className="px-4 py-3">
+                        {isEditing && editingUser ? (
+                          <input
+                            type="text"
+                            list="puestos-sugeridos"
+                            value={editingUser.puesto}
+                            onChange={(e) =>
+                              setEditingUser({ ...editingUser, puesto: e.target.value })
+                            }
+                            placeholder="Sin puesto"
+                            className="px-2 py-1 border border-stone-300 rounded text-sm w-full"
+                          />
+                        ) : (
+                          <span className="text-gray-600">{user.puesto || '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex gap-2">
                           {isEditing ? (
                             <>
@@ -722,6 +783,15 @@ export default function AdminUsersPanel() {
                               >
                                 🔑 Reset Pass
                               </button>
+                              {realUser?.email !== user.email && (
+                                <button
+                                  onClick={() => startImpersonation(user)}
+                                  title="Ver la app como este usuario (solo lectura)"
+                                  className="px-3 py-1 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm font-semibold transition-colors"
+                                >
+                                  👁️ Ver como
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -813,6 +883,27 @@ export default function AdminUsersPanel() {
                     )}
                   </div>
 
+                  {/* Puesto */}
+                  <div className="mb-4">
+                    <label className="text-xs font-semibold text-gray-500">Puesto</label>
+                    {isEditing && editingUser ? (
+                      <input
+                        type="text"
+                        list="puestos-sugeridos"
+                        value={editingUser.puesto}
+                        onChange={(e) =>
+                          setEditingUser({ ...editingUser, puesto: e.target.value })
+                        }
+                        placeholder="Sin puesto"
+                        className="w-full mt-1 px-2 py-2 border border-stone-300 rounded text-sm"
+                      />
+                    ) : (
+                      <div className="mt-1 text-sm text-gray-600">
+                        {user.puesto || '—'}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Acciones */}
                   <div className="flex gap-2 flex-wrap">
                     {isEditing ? (
@@ -844,6 +935,14 @@ export default function AdminUsersPanel() {
                         >
                           🔑 Reset Pass
                         </button>
+                        {realUser?.email !== user.email && (
+                          <button
+                            onClick={() => startImpersonation(user)}
+                            className="flex-1 px-2 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-xs font-semibold transition-colors"
+                          >
+                            👁️ Ver como
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

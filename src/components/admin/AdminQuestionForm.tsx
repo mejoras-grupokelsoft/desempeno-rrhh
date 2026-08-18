@@ -15,6 +15,8 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
   const [tipo, setTipo] = useState<QuestionType>('SOFT');
   const [areaId, setAreaId] = useState<string | null>(null);
   const [areas, setAreas] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [rolObjetivo, setRolObjetivo] = useState<string>('');
+  const [puestoSuggestions, setPuestoSuggestions] = useState<string[]>([]);
   const [estado, setEstado] = useState<'activo' | 'archivado' | 'oculto'>('activo');
   const [orden, setOrden] = useState(0);
   const [puntajeMinimo, setPuntajeMinimo] = useState(1);
@@ -46,6 +48,26 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
     loadAreas();
   }, []);
 
+  // Cargar puestos existentes (para sugerir en el autocompletado del rol objetivo)
+  useEffect(() => {
+    const loadPuestos = async () => {
+      try {
+        const { data, error: err } = await supabase
+          .from('users')
+          .select('puesto')
+          .not('puesto', 'is', null);
+        if (err) throw err;
+        const unique = Array.from(
+          new Set((data || []).map((u: any) => (u.puesto as string)?.trim()).filter(Boolean))
+        ).sort();
+        setPuestoSuggestions(['LIDER', 'ANALISTA', ...unique]);
+      } catch (err) {
+        console.error('Error cargando puestos:', err);
+      }
+    };
+    loadPuestos();
+  }, []);
+
   // Inicializar con datos de pregunta existente
   useEffect(() => {
     if (question) {
@@ -59,6 +81,7 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
       setPuntajeMaximo(question.puntajeMaximo ?? 4);
       setSkillNombre(question.skillNombre || '');
       setSkillId((question as any).skillId || null);
+      setRolObjetivo(question.rolObjetivo || '');
     }
   }, [question]);
 
@@ -179,6 +202,7 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
         orden: 0,
         skillId: tipo !== 'COMENTARIO' ? (skillId || null) : null,
         skillNombre: tipo !== 'COMENTARIO' ? (skillNombre.trim() || null) : null,
+        rolObjetivo: rolObjetivo.trim() || null,
       } as any);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error guardando pregunta');
@@ -283,6 +307,28 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Puesto objetivo */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              🎯 Puesto objetivo (Opcional)
+            </label>
+            <input
+              type="text"
+              list="puestos-objetivo-sugeridos"
+              value={rolObjetivo}
+              onChange={(e) => setRolObjetivo(e.target.value)}
+              placeholder="Dejar vacío = para todos. Ej: LIDER, ANALISTA, Líder Técnico..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            />
+            <datalist id="puestos-objetivo-sugeridos">
+              {puestoSuggestions.map(p => <option key={p} value={p} />)}
+            </datalist>
+            <p className="text-xs text-gray-500 mt-1">
+              Solo la ven las personas con ese puesto exacto (campo "Puesto" en Usuarios). Si el puesto está vacío, se usa LIDER/ANALISTA según el rol de acceso. Dejar en blanco = pregunta global para todos.
+            </p>
           </div>
 
           {/* Vinculación con Skills Matrix - Solo para HARD/SOFT */}

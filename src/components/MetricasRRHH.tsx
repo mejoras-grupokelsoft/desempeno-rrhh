@@ -13,6 +13,7 @@ import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
 import { generarCuerpoEmail, enviarEmailConPDF, pdfToBase64, type ResultadoEvaluacion } from '../utils/emailService';
 import { normalizeText, logger } from '../utils/sanitize';
+import { resolveRolObjetivo } from '../utils/puesto';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
 import PersonaRadarPanel from './PersonaRadarPanel';
@@ -1691,14 +1692,14 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
 
       {/* RADAR DE HABILIDADES REALES — se muestra al hacer clic en una fila */}
       {selectedPersonaRadar && (() => {
-        const userRol = users.find(u => u.email === selectedPersonaRadar.email)?.rol;
+        const userFull = users.find(u => u.email === selectedPersonaRadar.email);
         return (
           <PersonaRadarPanel
             email={selectedPersonaRadar.email}
             nombre={selectedPersonaRadar.nombre}
             area={selectedPersonaRadar.area}
             skillsMatrix={skillsMatrix}
-            rolObjetivo={userRol === 'Lider' ? 'LIDER' : 'ANALISTA'}
+            rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
             onClose={() => setSelectedPersonaRadar(null)}
           />
         );
@@ -1935,13 +1936,14 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
               {/* Radar de persona seleccionada */}
               {areaRadarEmail && (() => {
                 const persona = personasDeAreaExpandida.find(p => p.email === areaRadarEmail);
+                const userFull = users.find(u => u.email === areaRadarEmail);
                 return persona ? (
                   <PersonaRadarPanel
                     email={areaRadarEmail}
                     nombre={persona.nombre}
                     area={expandedAreaDrillDown}
                     skillsMatrix={skillsMatrix}
-                    rolObjetivo={persona.rol === 'Líder' ? 'LIDER' : 'ANALISTA'}
+                    rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
                     onClose={() => setAreaRadarEmail(null)}
                   />
                 ) : null;

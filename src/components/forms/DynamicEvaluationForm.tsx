@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchQuestionsByArea } from '../../lib/supabaseQueries';
 import { adaptQuestions } from '../../lib/adapters';
+import { useApp } from '../../context/AppContext';
 import type { Question, EvaluatorType, User } from '../../types';
 
 interface DynamicEvaluationFormProps {
@@ -20,6 +21,7 @@ export default function DynamicEvaluationForm({
   onSubmit,
   onCancel,
 }: DynamicEvaluationFormProps) {
+  const { isImpersonating } = useApp();
   const [questionsHard, setQuestionsHard] = useState<Question[]>([]);
   const [questionsSoft, setQuestionsSoft] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,11 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (isImpersonating) {
+      setError('Estás viendo la app como otro usuario. Salí del modo impersonado para guardar evaluaciones.');
+      return;
+    }
 
     // Validar que todas las preguntas tengan respuesta
     const allQuestions = [...questionsHard, ...questionsSoft];
@@ -256,14 +263,15 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
           )}
           <button
             type="submit"
-            disabled={submitting || loading}
+            disabled={submitting || loading || isImpersonating}
+            title={isImpersonating ? 'Salí del modo impersonado para guardar evaluaciones' : undefined}
             className={`flex-1 py-3 px-4 rounded-lg font-semibold text-white transition-all ${
-              submitting || loading
+              submitting || loading || isImpersonating
                 ? 'bg-gray-400 opacity-50'
                 : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
-            {submitting ? '⏳ Guardando...' : '✓ Guardar Evaluación'}
+            {submitting ? '⏳ Guardando...' : isImpersonating ? '🔒 Solo lectura (impersonando)' : '✓ Guardar Evaluación'}
           </button>
         </div>
       </form>

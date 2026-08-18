@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { insertEvaluation, insertBatchResponses } from '../../lib/supabaseQueries';
 import { useApp } from '../../context/AppContext';
 import DynamicEvaluationForm from './DynamicEvaluationForm';
+import { resolveRolObjetivo } from '../../utils/puesto';
 
 interface EvaluationFormAnalistaProps {
   onSuccess?: () => void;
@@ -67,7 +68,7 @@ export default function EvaluationFormAnalista({ onSuccess, onError }: Evaluatio
         evaluado={currentUser}
         tipoEvaluador="AUTO"
         areaId={currentUser.area_id || null}
-        rolObjetivo="ANALISTA"
+        rolObjetivo={resolveRolObjetivo(currentUser)}
         onSubmit={handleSubmit}
       />
     </div>

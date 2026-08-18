@@ -58,6 +58,33 @@ export async function changeUserRole(userId: string, newRole: string): Promise<b
 }
 
 /**
+ * Cambiar el puesto (posición real) de un usuario.
+ * Separado del rol de acceso: no otorga ni quita permisos, solo determina
+ * qué preguntas (rol_objetivo) le corresponden.
+ */
+export async function changeUserPuesto(userId: string, puesto: string | null): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        puesto: puesto?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      logger.error('Error changing user puesto:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err: any) {
+    logger.error('Error in changeUserPuesto:', err);
+    return false;
+  }
+}
+
+/**
  * Cambiar el área de un usuario
  */
 export async function changeUserArea(userId: string, areaId: string | null): Promise<boolean> {

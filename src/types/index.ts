@@ -44,6 +44,7 @@ export interface User {
   email: string;
   nombre: string;
   rol: UserRole;
+  puesto?: string | null; // Puesto real (ej: "Líder Técnico", "Desarrollador") — filtra preguntas, no define permisos ni quién evalúa
   area?: string;
   area_id?: string;
   foto?: string;

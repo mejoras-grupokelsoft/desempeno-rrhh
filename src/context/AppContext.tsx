@@ -30,6 +30,14 @@ interface AppContextType {
   setCurrentUser: (user: User | null) => void;
   logout: () => void;
   refetch: () => Promise<void>;
+  /** Usuario realmente logueado (RRHH/Director). Difiere de currentUser mientras se está impersonando. */
+  realUser: User | null;
+  /** true mientras un RRHH/Director está viendo la app como otro usuario */
+  isImpersonating: boolean;
+  /** Empezar a ver la app como otro usuario (solo lectura: no se pueden guardar evaluaciones) */
+  startImpersonation: (user: User) => void;
+  /** Volver a la sesión real */
+  stopImpersonation: () => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -38,9 +46,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [skillsMatrix, setSkillsMatrix] = useState<SkillMatrix[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loggedInUser, setLoggedInUser] = useState<User | null>(null);
+  const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const currentUser = impersonatedUser ?? loggedInUser;
 
   // Cargar datos de Supabase al montar
   useEffect(() => {
@@ -53,7 +64,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!session) {
         // Si Supabase cierra sesión, limpiar también el localStorage
         clearSession();
-        setCurrentUser(null);
+        setLoggedInUser(null);
+        setImpersonatedUser(null);
       }
       // Si hay sesión, no hacemos nada extra — el usuario ya quedó seteado por handleSetCurrentUser
     });
@@ -61,11 +73,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Validar usuario almacenado contra whitelist cuando llegan datos de Supabase
+  // Validar usuario logueado contra whitelist cuando llegan datos de Supabase
   useEffect(() => {
-    if (currentUser && users.length > 0) {
+    if (loggedInUser && users.length > 0) {
       const updatedUser = users.find(
-        u => u.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+        u => u.email.toLowerCase().trim() === loggedInUser.email.toLowerCase().trim()
       );
 
       if (!updatedUser) {
@@ -75,10 +87,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (JSON.stringify(updatedUser) !== JSON.stringify(currentUser)) {
-        // Datos actualizados (rol, area, nombre, etc.)
-        setCurrentUser(updatedUser);
+      if (JSON.stringify(updatedUser) !== JSON.stringify(loggedInUser)) {
+        // Datos actualizados (rol, area, puesto, etc.)
+        setLoggedInUser(updatedUser);
         localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+      }
+    }
+  }, [users]);
+
+  // Mantener al usuario impersonado sincronizado con la whitelist (sin persistir en localStorage)
+  useEffect(() => {
+    if (impersonatedUser && users.length > 0) {
+      const updatedUser = users.find(
+        u => u.email.toLowerCase().trim() === impersonatedUser.email.toLowerCase().trim()
+      );
+      if (!updatedUser) {
+        setImpersonatedUser(null);
+        return;
+      }
+      if (JSON.stringify(updatedUser) !== JSON.stringify(impersonatedUser)) {
+        setImpersonatedUser(updatedUser);
       }
     }
   }, [users]);
@@ -116,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const user: User = JSON.parse(stored);
         // Validación básica de estructura
         if (user.email && user.nombre && user.rol) {
-          setCurrentUser(user);
+          setLoggedInUser(user);
         } else {
           clearSession();
         }
@@ -127,7 +155,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const handleSetCurrentUser = (user: User | null) => {
-    setCurrentUser(user);
+    setLoggedInUser(user);
+    setImpersonatedUser(null); // un login nuevo siempre arranca sin impersonación activa
     if (user) {
       localStorage.setItem(SESSION_KEY, JSON.stringify(user));
       localStorage.setItem(SESSION_TS_KEY, String(Date.now()));
@@ -135,8 +164,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const handleLogout = useCallback(() => {
-    setCurrentUser(null);
+    setLoggedInUser(null);
+    setImpersonatedUser(null);
     supabase.auth.signOut(); // Cierra sesión en Supabase Auth → invalida el JWT → RLS queda activo
+  }, []);
+
+  const startImpersonation = useCallback((user: User) => {
+    if (!loggedInUser || (loggedInUser.rol !== 'RRHH' && loggedInUser.rol !== 'Director')) {
+      logger.warn('Solo RRHH/Director pueden impersonar usuarios');
+      return;
+    }
+    setImpersonatedUser(user);
+  }, [loggedInUser]);
+
+  const stopImpersonation = useCallback(() => {
+    setImpersonatedUser(null);
   }, []);
 
   return (
@@ -152,6 +194,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setCurrentUser: handleSetCurrentUser,
         logout: handleLogout,
         refetch: fetchData,
+        realUser: loggedInUser,
+        isImpersonating: impersonatedUser !== null,
+        startImpersonation,
+        stopImpersonation,
       }}
     >
       {children}

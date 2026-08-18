@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { insertEvaluation, insertBatchResponses } from '../../lib/supabaseQueries';
 import { useApp } from '../../context/AppContext';
 import DynamicEvaluationForm from './DynamicEvaluationForm';
+import { resolveRolObjetivo } from '../../utils/puesto';
 import type { User } from '../../types';
 
 interface EvaluationFormLiderProps {
@@ -138,7 +139,7 @@ export default function EvaluationFormLider({ eligibleMembers, onSuccess, onErro
             evaluado={selectedEmployee}
             tipoEvaluador="JEFE"
             areaId={selectedEmployee.area_id || null}
-            rolObjetivo={selectedEmployee.rol === 'Lider' ? 'LIDER' : 'ANALISTA'}
+            rolObjetivo={resolveRolObjetivo(selectedEmployee)}
             onSubmit={handleSubmit}
             onCancel={() => { setSelectedEmployee(null); setSelectedEmployeeEmail(''); }}
           />
