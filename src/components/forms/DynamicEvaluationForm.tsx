@@ -11,6 +11,7 @@ interface DynamicEvaluationFormProps {
   rolObjetivo?: string | null; // 'ANALISTA' | 'LIDER' — filtra preguntas por rol del evaluado
   onSubmit: (respuestas: Record<string, 1 | 2 | 3 | 4>, comentarios: string) => Promise<void>;
   onCancel?: () => void;
+  showLeaderFeedback?: boolean; // Muestra campos de feedback hacia el líder (fortalezas + mejoras)
 }
 
 export default function DynamicEvaluationForm({
@@ -20,6 +21,7 @@ export default function DynamicEvaluationForm({
   rolObjetivo,
   onSubmit,
   onCancel,
+  showLeaderFeedback = false,
 }: DynamicEvaluationFormProps) {
   const { isImpersonating } = useApp();
   const [questionsHard, setQuestionsHard] = useState<Question[]>([]);
@@ -27,9 +29,11 @@ export default function DynamicEvaluationForm({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [respuestas, setRespuestas] = useState<Record<string, 1 | 2 | 3 | 4>>({});
-  const [comentarios, setComentarios] = useState('');
+  const [fortalezasLider, setFortalezasLider] = useState('');
+  const [puntosMejoraLider, setPuntosMejoraLider] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [missingIds, setMissingIds] = useState<Set<string>>(new Set());
+  const [leaderFeedbackError, setLeaderFeedbackError] = useState('');
   const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Cargar preguntas al montar el componente
@@ -95,9 +99,26 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
     }
     setMissingIds(new Set());
 
+    // Validar feedback al líder (obligatorio cuando está habilitado)
+    if (showLeaderFeedback) {
+      if (!fortalezasLider.trim() || !puntosMejoraLider.trim()) {
+        setLeaderFeedbackError('Completá tanto las fortalezas como los puntos de mejora de tu líder antes de enviar.');
+        return;
+      }
+      setLeaderFeedbackError('');
+    }
+
     try {
       setSubmitting(true);
-      await onSubmit(respuestas, comentarios);
+      // Estructurar comentarios con feedback al líder
+      let comentariosFinales = '';
+      if (showLeaderFeedback) {
+        const partes: string[] = [];
+        partes.push(`[FORTALEZAS DEL LIDER]\n${fortalezasLider.trim()}\n[/FORTALEZAS DEL LIDER]`);
+        partes.push(`[PUNTOS DE MEJORA PARA EL LIDER]\n${puntosMejoraLider.trim()}\n[/PUNTOS DE MEJORA PARA EL LIDER]`);
+        comentariosFinales = partes.join('\n\n');
+      }
+      await onSubmit(respuestas, comentariosFinales);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error guardando evaluación');
     } finally {
@@ -234,20 +255,51 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
           </section>
         )}
 
-        {/* Comentarios */}
-        <section>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Comentarios Generales (Opcional)
-          </label>
-          <textarea
-            value={comentarios}
-            onChange={(e) => setComentarios(e.target.value)}
-            placeholder="Agrega comentarios adicionales sobre el desempeño..."
-            rows={4}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={submitting}
-          />
-        </section>
+        {/* Feedback al Líder (solo para autoevaluación de Analistas) */}
+        {showLeaderFeedback && (
+          <section className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-lg">💬</span>
+              <h3 className="text-base font-bold text-amber-900">Feedback para mi Líder</h3>
+            </div>
+            <p className="text-xs text-amber-700 mb-2">
+              Tus respuestas aquí son confidenciales y ayudan a tu líder a mejorar el acompañamiento del equipo.
+            </p>
+            {leaderFeedbackError && (
+              <p className="text-xs text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">
+                ⚠ {leaderFeedbackError}
+              </p>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold text-amber-800 mb-2">
+                🌟 Fortalezas de mi Líder
+              </label>
+              <textarea
+                value={fortalezasLider}
+                onChange={(e) => setFortalezasLider(e.target.value)}
+                placeholder="¿Qué cosas hace bien tu líder? ¿Qué valorás de su gestión? (ej: comunicación clara, buen feedback, apoyo técnico...)"
+                rows={3}
+                className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-amber-800 mb-2">
+                📈 Puntos de mejora para mi Líder
+              </label>
+              <textarea
+                value={puntosMejoraLider}
+                onChange={(e) => setPuntosMejoraLider(e.target.value)}
+                placeholder="¿Qué aspectos podría mejorar tu líder? (ej: más reuniones 1:1, mayor claridad en objetivos, más reconocimiento...)"
+                rows={3}
+                className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                disabled={submitting}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Botones de acción */}
         <div className="flex gap-4 pt-4">

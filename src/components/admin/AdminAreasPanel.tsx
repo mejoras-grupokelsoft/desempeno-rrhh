@@ -1,5 +1,5 @@
 // src/components/admin/AdminAreasPanel.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { Area, User } from '../../types';
 import { logger } from '../../utils/sanitize';
@@ -19,6 +19,7 @@ export default function AdminAreasPanel() {
   const [error, setError] = useState<string>('');
   const [showForm, setShowForm] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState<AreaFormData>({
     nombre: '',
     descripcion: '',
@@ -131,6 +132,10 @@ export default function AdminAreasPanel() {
     });
     setShowForm(true);
     setError('');
+    // Scroll suave al formulario
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleCancel = () => {
@@ -188,7 +193,7 @@ export default function AdminAreasPanel() {
       )}
 
       {showForm && (
-        <div className="bg-white border border-stone-200 rounded-lg p-6 space-y-4">
+        <div ref={formRef} className="bg-white border border-stone-200 rounded-lg p-6 space-y-4">
           <h3 className="font-bold text-lg text-slate-900">
             {editingArea ? 'Editar Área' : 'Nueva Área'}
           </h3>

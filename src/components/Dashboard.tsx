@@ -10,6 +10,7 @@ import {
   calcularEvolucionSemestral,
 } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
+import PeriodFilter from './shared/PeriodFilter';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
 import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
@@ -23,7 +24,7 @@ import OnboardingTooltip from '../components/OnboardingTooltip';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import FormularioView from '../components/FormularioView';
 import { dashboardSteps } from '../config/onboardingSteps';
-import type { Seniority } from '../types';
+import type { Seniority, Evaluation } from '../types';
 import MiDesempenoPanel from '../components/MiDesempenoPanel';
 
 type VistaType = 'individual' | 'metricas' | 'equipo' | 'formulario' | 'areas';
@@ -46,6 +47,9 @@ export default function Dashboard() {
   
   const [selectedFormulario, setSelectedFormulario] = useState<'LIDER' | 'ANALISTA' | ''>(''); // '' = ambos
   const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodoType>('HISTORICO');
+  const [filtroModoIndividual, setFiltroModoIndividual] = useState<'periodo' | 'rango'>('rango');
+  const [fechaInicioIndividual, setFechaInicioIndividual] = useState<string>('');
+  const [fechaFinIndividual, setFechaFinIndividual] = useState<string>('');
   const [hardSkillAreaIndexLider, setHardSkillAreaIndexLider] = useState<number>(0);
   const [hardSkillAreaIndexAnalista, setHardSkillAreaIndexAnalista] = useState<number>(0);
   const [filtrosCollapsed, setFiltrosCollapsed] = useState<boolean>(false);
@@ -78,8 +82,22 @@ export default function Dashboard() {
 
   // Aplicar filtros adicionales
   const filteredEvaluations = useMemo(() => {
-    // Primero filtrar por período
-    let result = filterByPeriod(visibleEvaluations, selectedPeriodo);
+    let result: Evaluation[];
+    
+    // Primero filtrar por período o rango personalizado
+    if (filtroModoIndividual === 'periodo') {
+      result = filterByPeriod(visibleEvaluations, selectedPeriodo);
+    } else if (fechaInicioIndividual && fechaFinIndividual) {
+      const inicio = new Date(fechaInicioIndividual);
+      const fin = new Date(fechaFinIndividual);
+      fin.setHours(23, 59, 59, 999);
+      result = visibleEvaluations.filter(e => {
+        const fecha = new Date(e.fecha);
+        return fecha >= inicio && fecha <= fin;
+      });
+    } else {
+      result = visibleEvaluations;
+    }
 
     if (selectedArea) {
       result = result.filter((e) => e.area === selectedArea);
@@ -90,7 +108,7 @@ export default function Dashboard() {
     }
 
     return result;
-  }, [visibleEvaluations, selectedArea, selectedEmail, selectedPeriodo]);
+  }, [visibleEvaluations, selectedArea, selectedEmail, selectedPeriodo, filtroModoIndividual, fechaInicioIndividual, fechaFinIndividual]);
 
   // Obtener datos para filtros
   const areas = useMemo(() => {
@@ -424,6 +442,9 @@ export default function Dashboard() {
     setSelectedEmail('');
     setSelectedFormulario('');
     setSelectedPeriodo('HISTORICO');
+    setFechaInicioIndividual('');
+    setFechaFinIndividual('');
+    setFiltroModoIndividual('rango');
     setHardSkillAreaIndexLider(0);
     setHardSkillAreaIndexAnalista(0);
   };
@@ -1063,24 +1084,19 @@ export default function Dashboard() {
                     </button>
                   </div>
                   {!filtrosCollapsed && (
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-800 mb-2">
-                      Período
-                    </label>
-                    <select
-                      value={selectedPeriodo}
-                      onChange={(e) => setSelectedPeriodo(e.target.value as PeriodoType)}
-                      className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white transition"
-                    >
-                      {PERIODOS.map((periodo) => (
-                        <option key={periodo.value} value={periodo.value}>
-                          {periodo.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <PeriodFilter
+                filtroModo={filtroModoIndividual}
+                setFiltroModo={setFiltroModoIndividual}
+                selectedPeriodo={selectedPeriodo}
+                setSelectedPeriodo={setSelectedPeriodo}
+                fechaInicio={fechaInicioIndividual}
+                setFechaInicio={setFechaInicioIndividual}
+                fechaFin={fechaFinIndividual}
+                setFechaFin={setFechaFinIndividual}
+                accentColor="orange"
+              />
 
                   <div>
                     <label className="block text-sm font-semibold text-stone-800 mb-2">

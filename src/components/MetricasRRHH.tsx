@@ -36,7 +36,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
   const [selectedSeniority, setSelectedSeniority] = useState<Seniority | ''>('');
   const [selectedFormulario, setSelectedFormulario] = useState<'LIDER' | 'ANALISTA' | ''>('');
   const [selectedPeriodo, setSelectedPeriodo] = useState<PeriodoType>('HISTORICO');
-  const [filtroModo, setFiltroModo] = useState<'periodo' | 'rango'>('periodo');
+  const [filtroModo, setFiltroModo] = useState<'periodo' | 'rango'>('rango');
   const [fechaInicio, setFechaInicio] = useState<string>('');
   const [fechaFin, setFechaFin] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -321,6 +321,9 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     setSelectedSeniority('');
     setSelectedFormulario('');
     setSelectedPeriodo('HISTORICO');
+    setFechaInicio('');
+    setFechaFin('');
+    setFiltroModo('rango');
     setCurrentPage(1);
   };
 
