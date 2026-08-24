@@ -70,6 +70,7 @@ export default function EvaluationFormAnalista({ onSuccess, onError }: Evaluatio
         areaId={currentUser.area_id || null}
         rolObjetivo={resolveRolObjetivo(currentUser)}
         onSubmit={handleSubmit}
+        showLeaderFeedback={currentUser.rol === 'Analista'}
       />
     </div>
   );
