@@ -237,16 +237,27 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
         {/* Comentarios */}
         <section>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Comentarios Generales (Opcional)
+            {tipoEvaluador === 'JEFE'
+              ? `💬 Feedback para ${evaluado.nombre} (Opcional)`
+              : 'Comentarios Generales (Opcional)'}
           </label>
           <textarea
             value={comentarios}
             onChange={(e) => setComentarios(e.target.value)}
-            placeholder="Agrega comentarios adicionales sobre el desempeño..."
+            placeholder={
+              tipoEvaluador === 'JEFE'
+                ? 'Escribí un comentario o feedback sobre su desempeño...'
+                : 'Agrega comentarios adicionales sobre el desempeño...'
+            }
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={submitting}
           />
+          {tipoEvaluador === 'JEFE' && (
+            <p className="text-xs text-gray-500 mt-1">
+              {evaluado.nombre} va a poder ver este comentario en su panel de resultados.
+            </p>
+          )}
         </section>
 
         {/* Botones de acción */}

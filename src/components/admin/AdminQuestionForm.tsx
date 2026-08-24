@@ -203,6 +203,8 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
         skillId: tipo !== 'COMENTARIO' ? (skillId || null) : null,
         skillNombre: tipo !== 'COMENTARIO' ? (skillNombre.trim() || null) : null,
         rolObjetivo: rolObjetivo.trim() || null,
+        puntajeMinimo: tipo !== 'COMENTARIO' ? puntajeMinimo : undefined,
+        puntajeMaximo: tipo !== 'COMENTARIO' ? puntajeMaximo : undefined,
       } as any);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error guardando pregunta');

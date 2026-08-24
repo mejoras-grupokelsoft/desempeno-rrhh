@@ -95,6 +95,9 @@ export default function AdminSkillsPanel() {
   const handleCreate = async (formData: Omit<SkillRow, 'id' | 'createdAt' | 'updatedAt'> & { skillMatrixData?: Array<{ seniority: string; valor_esperado: number }> }) => {
     try {
       const { skillMatrixData, ...skillData } = formData;
+      // "Global" se guarda como area vacía ('') desde el <select>; normalizar a NULL,
+      // que es lo que el resto de la app (vinculación de preguntas, filtros) espera.
+      if (!skillData.area) skillData.area = null as any;
 
       // Crear skill
       const { data, error: insertError } = await supabase
@@ -134,6 +137,8 @@ export default function AdminSkillsPanel() {
   const handleUpdate = async (id: string, updates: Partial<SkillRow> & { skillMatrixData?: Array<{ seniority: string; valor_esperado: number }> }) => {
     try {
       const { skillMatrixData, ...skillData } = updates;
+      // "Global" se guarda como area vacía ('') desde el <select>; normalizar a NULL.
+      if ('area' in skillData && !skillData.area) skillData.area = null as any;
 
       const { error: updateError } = await supabase
         .from('skills')
@@ -144,13 +149,34 @@ export default function AdminSkillsPanel() {
 
       // Actualizar skills_matrix si se proporcionaron puntajes
       if (skillMatrixData && skillMatrixData.length > 0) {
-        const skillNombre = skills.find(s => s.id === id)?.nombre || skillData.nombre;
+        const existingSkill = skills.find(s => s.id === id);
+        const skillNombre = existingSkill?.nombre || skillData.nombre;
+        const skillTipo = skillData.tipo || existingSkill?.tipo;
+        const skillArea = 'area' in skillData ? skillData.area : existingSkill?.area;
         for (const m of skillMatrixData) {
-          await supabase
+          // .update() no crea la fila si todavía no existe (skill sin matriz seedeada) y
+          // falla en silencio: si no afectó ninguna fila, la insertamos.
+          const { data: updatedRows, error: matrixUpdateError } = await supabase
             .from('skills_matrix')
             .update({ valor_esperado: m.valor_esperado })
             .eq('skill_nombre', skillNombre)
-            .eq('seniority', m.seniority);
+            .eq('seniority', m.seniority)
+            .select('id');
+
+          if (matrixUpdateError) throw matrixUpdateError;
+
+          if (!updatedRows || updatedRows.length === 0) {
+            const { error: matrixInsertError } = await supabase
+              .from('skills_matrix')
+              .insert({
+                skill_nombre: skillNombre,
+                skill_tipo: skillTipo,
+                seniority: m.seniority,
+                valor_esperado: m.valor_esperado,
+                area: skillArea || null,
+              });
+            if (matrixInsertError) throw matrixInsertError;
+          }
         }
       }
 

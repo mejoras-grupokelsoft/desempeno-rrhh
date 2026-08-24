@@ -259,9 +259,10 @@ export async function fetchQuestionsByArea(
     query = query.eq('estado', 'activo');
   }
 
-  // Filtrar por área en la DB
+  // Filtrar por área en la DB: incluir las preguntas de esa área específica
+  // Y también las globales (area_id null), que aplican a todas las áreas.
   if (areaId) {
-    query = query.eq('area_id', areaId);
+    query = query.or(`area_id.eq.${areaId},area_id.is.null`);
   } else {
     query = query.is('area_id', null);
   }
@@ -275,7 +276,8 @@ export async function fetchQuestionsByArea(
 
   return (data || [])
     .filter((q: any) => {
-      if (tipo && q.skills?.tipo !== tipo) return false;
+      // Usar el tipo real de la pregunta, no el de la skill vinculada (pueden desalinearse)
+      if (tipo && q.tipo !== tipo) return false;
       // Filtrar por rol_objetivo: si se especifica un rol, solo traer preguntas de ese rol o globales (null)
       if (rolObjetivo && q.rol_objetivo != null && q.rol_objetivo !== rolObjetivo) return false;
       return true;
@@ -283,7 +285,6 @@ export async function fetchQuestionsByArea(
     .map((q: any) => ({
       ...q,
       skill_nombre: q.skills?.nombre || null,
-      tipo: q.skills?.tipo || null,
     }));
 }
 
@@ -318,10 +319,14 @@ export async function updateQuestion(
   const safeUpdates: any = {};
   if ('pregunta' in updates) safeUpdates.pregunta = updates.pregunta;
   if ('descripcion' in updates) safeUpdates.descripcion = updates.descripcion;
+  if ('tipo' in updates) safeUpdates.tipo = updates.tipo;
   if ('skill_id' in updates) safeUpdates.skill_id = updates.skill_id;
   if ('rol_objetivo' in updates) safeUpdates.rol_objetivo = updates.rol_objetivo;
   if ('area_id' in updates) safeUpdates.area_id = updates.area_id;
   if ('estado' in updates) safeUpdates.estado = updates.estado;
+  if ('orden' in updates) safeUpdates.orden = updates.orden;
+  if ('puntaje_minimo' in updates) safeUpdates.puntaje_minimo = updates.puntaje_minimo;
+  if ('puntaje_maximo' in updates) safeUpdates.puntaje_maximo = updates.puntaje_maximo;
 
   const { data, error } = await supabase
     .from('questions')

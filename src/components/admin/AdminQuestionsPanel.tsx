@@ -231,10 +231,13 @@ export default function AdminQuestionsPanel() {
       const supabaseData = {
         pregunta: formData.nombre,
         descripcion: formData.descripcion || null,
+        tipo: formData.tipo || null,
         skill_id: formData.skillId || null,
         rol_objetivo: formData.rolObjetivo || null,
         area_id: formData.areaId || null,
         estado: formData.estado || 'activo',
+        puntaje_minimo: formData.puntajeMinimo ?? 1,
+        puntaje_maximo: formData.puntajeMaximo ?? 4,
       };
       const newQuestion = await createQuestion(supabaseData as any);
       setQuestions([...questions, adaptQuestions([newQuestion])[0]]);
@@ -251,10 +254,13 @@ export default function AdminQuestionsPanel() {
       const supabaseUpdates = {
         ...(updates.nombre !== undefined && { pregunta: updates.nombre }),
         ...(updates.descripcion !== undefined && { descripcion: updates.descripcion }),
+        ...(updates.tipo !== undefined && { tipo: updates.tipo }),
         ...(updates.areaId !== undefined && { area_id: updates.areaId }),
         ...(updates.rolObjetivo !== undefined && { rol_objetivo: updates.rolObjetivo }),
         ...(updates.estado !== undefined && { estado: updates.estado }),
         ...(updates.skillId !== undefined && { skill_id: updates.skillId }),
+        ...(updates.puntajeMinimo !== undefined && { puntaje_minimo: updates.puntajeMinimo }),
+        ...(updates.puntajeMaximo !== undefined && { puntaje_maximo: updates.puntajeMaximo }),
       };
       const updated = await updateQuestion(id, supabaseUpdates as any);
       setQuestions(questions.map(q => (q.id === id ? adaptQuestions([updated])[0] : q)));
