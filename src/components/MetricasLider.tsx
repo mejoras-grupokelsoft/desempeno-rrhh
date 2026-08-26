@@ -7,6 +7,7 @@ import { getUniqueEvaluados } from '../utils/filters';
 import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
 import { transformarARadarData, calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
+import { useTeamAccess } from '../hooks/useTeamAccess';
 import { logger, normalizeText } from '../utils/sanitize';
 import RadarChart from '../components/RadarChart';
 import OnboardingTooltip from '../components/OnboardingTooltip';
@@ -26,6 +27,7 @@ interface MetricasLiderProps {
 
 export default function MetricasLider({ evaluations, skillsMatrix, currentUser }: MetricasLiderProps) {
   const { logout } = useApp();
+  const { teamsAsLeader } = useTeamAccess(currentUser);
 
   // Estados para filtros
   const [subVista, setSubVista] = useState<'desempeno' | 'equipo' | 'formulario'>('desempeno');
@@ -382,8 +384,8 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       .slice(startIndex, endIndex);
   }, [resultadosEquipo, currentPage]);
 
-  // Ocultar Mi Equipo para RRHH y Director
-  const showEquipoSection = currentUser.rol !== 'RRHH' && currentUser.rol !== 'Director';
+  // Mi Equipo: siempre para Líderes; para RRHH/Director solo si además lideran un equipo (ej: Nico)
+  const showEquipoSection = currentUser.rol === 'Lider' || teamsAsLeader.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-stone-100">

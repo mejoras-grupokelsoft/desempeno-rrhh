@@ -2,17 +2,21 @@
 [build]
   # Comando para construir el proyecto
   command = "npm run build"
-  
+
   # Directorio donde está el build final
   publish = "dist"
-  
+
+  # Directorio de Netlify Functions (ej: envío de email por Gmail SMTP)
+  functions = "netlify/functions"
+
   # Variables de entorno necesarias (configurar en Netlify UI)
-  # VITE_GOOGLE_SCRIPT_URL
   # VITE_GOOGLE_CLIENT_ID
   # VITE_APP_TITLE
   # VITE_APP_VERSION
   # VITE_ENABLE_DEBUG
   # VITE_API_TIMEOUT
+  # GMAIL_USER            (server-side, sin prefijo VITE_ — no se expone al navegador)
+  # GMAIL_APP_PASSWORD    (server-side, sin prefijo VITE_ — no se expone al navegador)
 
 # Habilitar branch deploys para la rama QA
 # Esto genera una URL tipo: qa--tu-sitio.netlify.app
@@ -27,7 +31,7 @@
 # Estas variables DEBEN estar en el bundle de JavaScript para que el frontend funcione
 [build.environment]
   NODE_VERSION = "20"
-  SECRETS_SCAN_OMIT_KEYS = "VITE_GOOGLE_CLIENT_ID,VITE_GOOGLE_SCRIPT_URL,VITE_APP_VERSION,VITE_APP_TITLE,VITE_API_TIMEOUT,VITE_ENABLE_DEBUG"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_GOOGLE_CLIENT_ID,VITE_APP_VERSION,VITE_APP_TITLE,VITE_API_TIMEOUT,VITE_ENABLE_DEBUG"
 
 # Redirecciones para React Router
 [[redirects]]

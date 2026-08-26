@@ -157,30 +157,17 @@ export function generarCuerpoEmail(
 }
 
 /**
- * Envía el PDF por email.
- * Usa VITE_GOOGLE_SCRIPT_URL si está configurada (Google Apps Script legacy).
- * Si no está configurada, retorna un error indicativo.
+ * Envía el PDF por email a través de la Netlify Function /api/send-email,
+ * que manda el mail vía Gmail SMTP (Google Workspace).
  */
 export async function enviarEmailConPDF(request: EmailRequest): Promise<EmailResponse> {
-  const apiUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
-
-  if (!apiUrl) {
-    return {
-      success: false,
-      message: 'No hay servicio de email configurado. Configurá VITE_GOOGLE_SCRIPT_URL en .env o conectá un servicio de email.',
-    };
-  }
-
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'sendEmail',
-        from: 'capital.humano@grupokelsoft.com',
-        fromName: 'Capital Humano Kelsoft',
         destinatarios: request.destinatarios,
         asunto: request.asunto,
         cuerpoHTML: request.cuerpoHTML,

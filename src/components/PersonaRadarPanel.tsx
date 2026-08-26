@@ -15,7 +15,7 @@ interface PersonaRadarPanelProps {
   area?: string;
   periodos?: string[];
   skillsMatrix?: SkillMatrix[];   // Skills matrix de administración
-  rolObjetivo?: string;           // 'ANALISTA' | 'LIDER' — filtra skills según rol
+  rolObjetivo?: string | string[]; // puesto(s) objetivo aceptables — filtra skills según rol/puesto
   onClose?: () => void;
 }
 

@@ -70,10 +70,11 @@ export default function AdminAreasPanel() {
 
       if (editingArea) {
         // Actualizar
+        const nuevoNombre = formData.nombre.trim();
         const { error: supabaseError } = await supabase
           .from('areas')
           .update({
-            nombre: formData.nombre.trim(),
+            nombre: nuevoNombre,
             descripcion: formData.descripcion.trim() || null,
             parent_area_id: formData.parent_area_id || null,
             lider_email: formData.lider_email || null,
@@ -86,6 +87,18 @@ export default function AdminAreasPanel() {
           setError(`Error al actualizar el área. ${supabaseError.message || 'Verifica permisos.'}`);
           logger.error('Error updating area:', supabaseError);
           return;
+        }
+
+        // Propagar el nuevo nombre al campo de texto `area` (compatibilidad) de
+        // todos los usuarios que apuntan a esta área, para que no quede desincronizado.
+        if (nuevoNombre !== editingArea.nombre) {
+          const { error: syncError } = await supabase
+            .from('users')
+            .update({ area: nuevoNombre, updated_at: new Date().toISOString() })
+            .eq('area_id', editingArea.id);
+          if (syncError) {
+            logger.error('Error sincronizando area de usuarios tras renombrar:', syncError);
+          }
         }
       } else {
         // Crear

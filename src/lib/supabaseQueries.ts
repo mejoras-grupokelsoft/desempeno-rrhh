@@ -1,6 +1,15 @@
 // src/lib/supabaseQueries.ts
 import { supabase } from './supabase';
 import type { User, SupabaseEvaluation, SupabaseSkillMatrix, SupabaseQuestion, SupabaseUserArea } from '../types';
+import { matchesRolObjetivo } from '../utils/puesto';
+
+// Normaliza el parámetro rolObjetivo (un valor o varios) a un array, o null si no hay filtro
+function normalizeRolObjetivo(rolObjetivo?: string | string[] | null): string[] | null {
+  if (!rolObjetivo) return null;
+  const arr = Array.isArray(rolObjetivo) ? rolObjetivo : [rolObjetivo];
+  const filtered = arr.filter(v => v && v.trim());
+  return filtered.length > 0 ? filtered : null;
+}
 
 // ============= USUARIOS =============
 
@@ -245,8 +254,9 @@ export async function fetchQuestionsByArea(
   areaId: string | null,
   tipo: 'HARD' | 'SOFT',
   includeArchived = false,
-  rolObjetivo?: string   // 'ANALISTA' | 'LIDER' — filtra preguntas por rol del evaluado
+  rolObjetivo?: string | string[]   // puesto(s) objetivo aceptables para el evaluado (puesto específico + rol genérico)
 ): Promise<SupabaseQuestion[]> {
+  const acceptableRoles = normalizeRolObjetivo(rolObjetivo);
   let query = supabase
     .from('questions')
     .select(`
@@ -278,8 +288,9 @@ export async function fetchQuestionsByArea(
     .filter((q: any) => {
       // Usar el tipo real de la pregunta, no el de la skill vinculada (pueden desalinearse)
       if (tipo && q.tipo !== tipo) return false;
-      // Filtrar por rol_objetivo: si se especifica un rol, solo traer preguntas de ese rol o globales (null)
-      if (rolObjetivo && q.rol_objetivo != null && q.rol_objetivo !== rolObjetivo) return false;
+      // Filtrar por rol_objetivo: si se especifican roles aceptables, solo traer preguntas
+      // de esos roles/puestos o globales (null)
+      if (acceptableRoles && !matchesRolObjetivo(q.rol_objetivo, acceptableRoles)) return false;
       return true;
     })
     .map((q: any) => ({
@@ -599,6 +610,23 @@ export async function fetchTeamsByMember(userEmail: string): Promise<{ team_id: 
   return data || [];
 }
 
+/** Email del líder del equipo al que pertenece un usuario (para copiarlo en el envío de reportes por email) */
+export async function fetchLeaderEmailForUser(userEmail: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('teams:team_id (leader_email)')
+    .eq('user_email', userEmail)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching leader email for user:', error);
+    return null;
+  }
+  const leaderEmail = (data as any)?.teams?.leader_email as string | undefined;
+  return leaderEmail && leaderEmail.toLowerCase() !== userEmail.toLowerCase() ? leaderEmail : null;
+}
+
 /**
  * Sincroniza automáticamente un usuario con el equipo de su área.
  * - Si es Lider/Director: crea el equipo del área si no existe, y lo pone como líder.
@@ -791,8 +819,9 @@ export async function fetchPersonaSkillAverages(
   email: string,
   periodos?: string[],
   areaName?: string,
-  rolObjetivo?: string   // 'ANALISTA' | 'LIDER' — filtra preguntas por rol del evaluado
+  rolObjetivo?: string | string[]   // puesto(s) objetivo aceptables para el evaluado (puesto específico + rol genérico)
 ): Promise<SkillAvgRow[]> {
+  const acceptableRoles = normalizeRolObjetivo(rolObjetivo);
   // 1. Buscar evaluaciones de esa persona
   let evalQuery = supabase
     .from('evaluations')
@@ -846,11 +875,10 @@ export async function fetchPersonaSkillAverages(
   const { data: questions, error: qErr } = await qQuery;
   if (qErr) throw qErr;
 
-  // Filtrar preguntas por rol_objetivo: si se pasa un rol, excluir preguntas del rol contrario
-  const filteredQuestions = (questions || []).filter((q: any) => {
-    if (!rolObjetivo) return true;
-    return q.rol_objetivo == null || q.rol_objetivo === rolObjetivo;
-  });
+  // Filtrar preguntas por rol_objetivo: si se pasan roles aceptables, excluir preguntas de otros roles/puestos
+  const filteredQuestions = (questions || []).filter((q: any) =>
+    !acceptableRoles || matchesRolObjetivo(q.rol_objetivo, acceptableRoles)
+  );
 
   const preguntaToSkill: Record<string, string> = {};
   filteredQuestions.forEach((q: any) => { preguntaToSkill[q.id] = q.skill_id; });
@@ -867,13 +895,10 @@ export async function fetchPersonaSkillAverages(
 
   if (skErr) throw skErr;
 
-  // Filtrar skills por rol_objetivo: si se especifica un rol, excluir skills del rol contrario
+  // Filtrar skills por rol_objetivo: si se especifican roles aceptables, excluir skills de otros roles/puestos
   const validSkillIds = new Set(
     (skills || [])
-      .filter((s: any) => {
-        if (!rolObjetivo) return true;
-        return s.rol_objetivo == null || s.rol_objetivo === rolObjetivo;
-      })
+      .filter((s: any) => !acceptableRoles || matchesRolObjetivo(s.rol_objetivo, acceptableRoles))
       .map((s: any) => s.id)
   );
 

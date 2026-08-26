@@ -55,7 +55,7 @@ describe('generarCuerpoEmail', () => {
 });
 
 // =====================================================================
-// enviarEmailConPDF — con mocks de fetch e import.meta.env
+// enviarEmailConPDF — con mocks de fetch (llama a la Netlify Function /api/send-email)
 // =====================================================================
 describe('enviarEmailConPDF', () => {
   const mockRequest: EmailRequest = {
@@ -70,20 +70,9 @@ describe('enviarEmailConPDF', () => {
     vi.restoreAllMocks();
   });
 
-  it('retorna error si VITE_GOOGLE_SCRIPT_URL no está configurada', async () => {
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', '');
-
-    const result = await enviarEmailConPDF(mockRequest);
-    expect(result.success).toBe(false);
-    expect(result.message).toContain('VITE_GOOGLE_SCRIPT_URL');
-  });
-
-  it('envía POST con los datos correctos cuando URL está configurada', async () => {
-    // Mockeamos import.meta.env
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', 'https://script.google.com/test');
-
+  it('envía POST a /api/send-email con los datos correctos', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ success: true, message: 'Enviado' }),
+      json: () => Promise.resolve({ message: 'Enviado', enviados: ['test@example.com'], fallidos: [] }),
     });
     vi.stubGlobal('fetch', mockFetch);
 
@@ -91,11 +80,11 @@ describe('enviarEmailConPDF', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, options] = mockFetch.mock.calls[0];
-    expect(url).toBe('https://script.google.com/test');
+    expect(url).toBe('/api/send-email');
     expect(options.method).toBe('POST');
+    expect(options.headers['Content-Type']).toBe('application/json');
 
     const body = JSON.parse(options.body);
-    expect(body.action).toBe('sendEmail');
     expect(body.destinatarios).toEqual(['test@example.com']);
     expect(body.asunto).toBe('Test Subject');
     expect(body.pdfBase64).toBe('base64data');
@@ -105,20 +94,16 @@ describe('enviarEmailConPDF', () => {
   });
 
   it('maneja respuesta de error del servidor', async () => {
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', 'https://script.google.com/test');
-
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ error: true, message: 'Quota exceeded' }),
+      json: () => Promise.resolve({ error: true, message: 'Faltan credenciales de Gmail' }),
     }));
 
     const result = await enviarEmailConPDF(mockRequest);
     expect(result.success).toBe(false);
-    expect(result.message).toBe('Quota exceeded');
+    expect(result.message).toBe('Faltan credenciales de Gmail');
   });
 
   it('maneja error de red', async () => {
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', 'https://script.google.com/test');
-
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
     const result = await enviarEmailConPDF(mockRequest);
@@ -127,25 +112,10 @@ describe('enviarEmailConPDF', () => {
   });
 
   it('maneja error no-Error genérico', async () => {
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', 'https://script.google.com/test');
-
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
 
     const result = await enviarEmailConPDF(mockRequest);
     expect(result.success).toBe(false);
     expect(result.message).toContain('Error de conexión');
-  });
-
-  it('usa Content-Type text/plain (requerido por Apps Script CORS)', async () => {
-    vi.stubEnv('VITE_GOOGLE_SCRIPT_URL', 'https://script.google.com/test');
-
-    const mockFetch = vi.fn().mockResolvedValue({
-      json: () => Promise.resolve({ success: true }),
-    });
-    vi.stubGlobal('fetch', mockFetch);
-
-    await enviarEmailConPDF(mockRequest);
-    const headers = mockFetch.mock.calls[0][1].headers;
-    expect(headers['Content-Type']).toBe('text/plain');
   });
 });

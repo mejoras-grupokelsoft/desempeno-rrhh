@@ -14,7 +14,9 @@ import PeriodFilter from './shared/PeriodFilter';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
 import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
-import { resolveRolObjetivo } from '../utils/puesto';
+import { resolveRolObjetivos } from '../utils/puesto';
+import { useTeamAccess } from '../hooks/useTeamAccess';
+import { fetchLeaderEmailForUser } from '../lib/supabaseQueries';
 import PersonaRadarPanel from '../components/PersonaRadarPanel';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -32,6 +34,9 @@ type VistaType = 'individual' | 'metricas' | 'equipo' | 'formulario' | 'areas';
 export default function Dashboard() {
   const { currentUser, users, evaluations, skillsMatrix, logout } = useApp();
   const { dark, toggle: toggleDark } = useTheme();
+  // Directores/RRHH que además lideran un equipo (ej: Nico) también acceden a "Mi Equipo"
+  const { teamsAsLeader } = useTeamAccess(currentUser);
+  const puedeVerMiEquipo = currentUser?.rol === 'Lider' || teamsAsLeader.length > 0;
   const [showAdmin, setShowAdmin] = useState(false);
   const [selectedArea, setSelectedArea] = useState<string>('');
   const [selectedEmail, setSelectedEmail] = useState<string>('');
@@ -549,8 +554,15 @@ export default function Dashboard() {
     // Parsear y sanitizar destinatarios
     const destinatariosExtra = sanitizeEmailList(emailDestinatarios);
 
-    // Siempre incluir al evaluado, más los extras
-    const todosDestinatarios = [selectedEmail, ...destinatariosExtra.filter(e => e !== selectedEmail)];
+    // Copiar automáticamente al líder del equipo del evaluado
+    const leaderEmail = await fetchLeaderEmailForUser(selectedEmail);
+
+    // Siempre incluir al evaluado + su líder, más los extras (sin duplicados)
+    const todosDestinatarios = [
+      selectedEmail,
+      ...(leaderEmail ? [leaderEmail] : []),
+      ...destinatariosExtra,
+    ].filter((email, idx, arr) => arr.findIndex(e => e.toLowerCase() === email.toLowerCase()) === idx);
 
     // Validar que todos tengan formato de email válido
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -745,8 +757,8 @@ export default function Dashboard() {
             </button>
           )}
 
-          {/* Mi Equipo - Solo Lider */}
-          {currentUser.rol === 'Lider' && (
+          {/* Mi Equipo - Lider, o Director/RRHH que además lidera un equipo */}
+          {puedeVerMiEquipo && (
             <button
               onClick={() => setVista('equipo')}
               className={`px-6 py-3 rounded-xl font-semibold transition-all ${
@@ -777,7 +789,7 @@ export default function Dashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
-              Formulario
+              Evaluaciones
             </span>
           </button>
 
@@ -809,8 +821,8 @@ export default function Dashboard() {
         {/* Vista Formulario - Todos los roles */}
         {vista === 'formulario' && <FormularioView />}
 
-        {/* Vista de Mi Equipo (Solo Lider) */}
-        {vista === 'equipo' && currentUser.rol === 'Lider' ? (
+        {/* Vista de Mi Equipo (Lider, o Director/RRHH que además lidera un equipo) */}
+        {vista === 'equipo' && puedeVerMiEquipo ? (
           <MetricasLider
             evaluations={visibleEvaluations}
             users={users}
@@ -1048,7 +1060,7 @@ export default function Dashboard() {
                         nombre={persona.nombre}
                         area={expandedArea}
                         skillsMatrix={skillsMatrix}
-                        rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
+                        rolObjetivo={userFull ? resolveRolObjetivos(userFull) : ['ANALISTA']}
                         onClose={() => setExpandedAreaRadar(null)}
                       />
                     ) : null;
@@ -1279,6 +1291,9 @@ export default function Dashboard() {
                 <p className="text-xs text-blue-700">
                   <span className="font-semibold">Destinatario principal:</span> {selectedEmail}
                 </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Se copia automáticamente al líder de su equipo.
+                </p>
               </div>
 
               <label className="block text-sm font-medium text-stone-600 mb-2">
@@ -1292,7 +1307,7 @@ export default function Dashboard() {
                 className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
               />
               <p className="text-xs text-stone-400 mt-1">
-                Separá múltiples emails con comas. El reporte se enviará al evaluado y a los adicionales.
+                Separá múltiples emails con comas. El reporte se envía al evaluado, a su líder automáticamente, y a los adicionales que agregues acá.
               </p>
             </div>
 

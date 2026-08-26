@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { insertEvaluation, insertBatchResponses } from '../../lib/supabaseQueries';
 import { useApp } from '../../context/AppContext';
 import DynamicEvaluationForm from './DynamicEvaluationForm';
-import { resolveRolObjetivo } from '../../utils/puesto';
+import { resolveRolObjetivos } from '../../utils/puesto';
 
 interface EvaluationFormAnalistaProps {
   onSuccess?: () => void;
@@ -68,9 +68,13 @@ export default function EvaluationFormAnalista({ onSuccess, onError }: Evaluatio
         evaluado={currentUser}
         tipoEvaluador="AUTO"
         areaId={currentUser.area_id || null}
-        rolObjetivo={resolveRolObjetivo(currentUser)}
+        rolObjetivo={resolveRolObjetivos(currentUser)}
         onSubmit={handleSubmit}
-        showLeaderFeedback={currentUser.rol === 'Analista'}
+        // Este formulario solo se renderiza para quien es miembro de un equipo con
+        // autoevaluación (ver FormularioView/useTeamAccess), y todo equipo tiene un
+        // líder (teams.leader_email es obligatorio) — por eso el feedback hacia el
+        // líder aplica siempre acá, sea cual sea el rol de acceso del usuario.
+        showLeaderFeedback={true}
       />
     </div>
   );

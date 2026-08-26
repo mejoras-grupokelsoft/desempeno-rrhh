@@ -329,7 +329,7 @@ export default function AdminQuestionForm({ question, onSave, onCancel }: AdminQ
               {puestoSuggestions.map(p => <option key={p} value={p} />)}
             </datalist>
             <p className="text-xs text-gray-500 mt-1">
-              Solo la ven las personas con ese puesto exacto (campo "Puesto" en Usuarios). Si el puesto está vacío, se usa LIDER/ANALISTA según el rol de acceso. Dejar en blanco = pregunta global para todos.
+              Si ponés "LIDER" o "ANALISTA", la ven todas las personas con ese rol de acceso, sin importar su puesto puntual (CH, Proyectos, Admin, Mejoras, etc. — no hace falta duplicar la pregunta por puesto). Si ponés un puesto específico (ej: "Líder Técnico"), solo la ven quienes tengan exactamente ese puesto. Dejar en blanco = pregunta global para todos.
             </p>
           </div>
 

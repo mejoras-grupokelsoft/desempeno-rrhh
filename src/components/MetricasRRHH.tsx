@@ -13,7 +13,8 @@ import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
 import { generarCuerpoEmail, enviarEmailConPDF, pdfToBase64, type ResultadoEvaluacion } from '../utils/emailService';
 import { normalizeText, logger } from '../utils/sanitize';
-import { resolveRolObjetivo } from '../utils/puesto';
+import { resolveRolObjetivos } from '../utils/puesto';
+import { fetchLeaderEmailForUser } from '../lib/supabaseQueries';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
 import PersonaRadarPanel from './PersonaRadarPanel';
@@ -655,9 +656,11 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
         };
         const cuerpo = generarCuerpoEmail(persona.nombre, 'S Actual', undefined, resultado);
         const pdfBase64 = pdfToBase64(pdf);
+        const leaderEmail = await fetchLeaderEmailForUser(persona.email);
+        const destinatarios = leaderEmail ? [persona.email, leaderEmail] : [persona.email];
 
         const res = await enviarEmailConPDF({
-          destinatarios: [persona.email],
+          destinatarios,
           asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
           cuerpoHTML: cuerpo,
           pdfBase64,
@@ -679,15 +682,12 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     setSelectedForEmail(new Set());
   };
 
-  // Función para generar PDF individual
+  // Función para generar PDF individual — descargar y enviar son acciones independientes
   const handleGenerarPDFIndividual = async (doSendEmail: boolean = false) => {
     if (!personaParaPDF) return;
 
     setIndividualEmailResult(null);
     const { pdf, nombreArchivo } = await buildPDFData(personaParaPDF);
-
-    // Siempre descargar el PDF
-    pdf.save(nombreArchivo);
 
     if (doSendEmail) {
       setIsSendingIndividual(true);
@@ -707,9 +707,11 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
           resultado,
         );
         const pdfBase64 = pdfToBase64(pdf);
+        const leaderEmail = await fetchLeaderEmailForUser(personaParaPDF.email);
+        const destinatarios = leaderEmail ? [personaParaPDF.email, leaderEmail] : [personaParaPDF.email];
 
         const res = await enviarEmailConPDF({
-          destinatarios: [personaParaPDF.email],
+          destinatarios,
           asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
           cuerpoHTML: cuerpo,
           pdfBase64,
@@ -725,6 +727,9 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       // No cerrar modal para que el usuario vea el resultado
       return;
     }
+
+    // Solo descargar (no se pidió envío por email)
+    pdf.save(nombreArchivo);
 
     // Cerrar modal
     setModalPDFAbierto(false);
@@ -1702,7 +1707,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
             nombre={selectedPersonaRadar.nombre}
             area={selectedPersonaRadar.area}
             skillsMatrix={skillsMatrix}
-            rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
+            rolObjetivo={userFull ? resolveRolObjetivos(userFull) : ['ANALISTA']}
             onClose={() => setSelectedPersonaRadar(null)}
           />
         );
@@ -1946,7 +1951,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                     nombre={persona.nombre}
                     area={expandedAreaDrillDown}
                     skillsMatrix={skillsMatrix}
-                    rolObjetivo={userFull ? resolveRolObjetivo(userFull) : 'ANALISTA'}
+                    rolObjetivo={userFull ? resolveRolObjetivos(userFull) : ['ANALISTA']}
                     onClose={() => setAreaRadarEmail(null)}
                   />
                 ) : null;
@@ -2018,7 +2023,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                 className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none text-sm"
               />
               <p className="text-xs text-stone-500 mt-1">
-                Aparece en el PDF y en el cuerpo del email.
+                Aparece en el PDF y en el cuerpo del email. El email se copia automáticamente al líder del equipo.
               </p>
             </div>
 
@@ -2063,7 +2068,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
-                    Descargar + Enviar Email
+                    Enviar por Email
                   </>
                 )}
               </button>

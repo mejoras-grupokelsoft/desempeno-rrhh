@@ -8,7 +8,7 @@ interface DynamicEvaluationFormProps {
   evaluado: User; // Persona siendo evaluada
   tipoEvaluador: EvaluatorType; // 'AUTO' o 'JEFE'
   areaId: string | null; // UUID del área para filtrar preguntas HARD
-  rolObjetivo?: string | null; // 'ANALISTA' | 'LIDER' — filtra preguntas por rol del evaluado
+  rolObjetivo?: string | string[] | null; // puesto(s) objetivo aceptables — filtra preguntas por rol/puesto del evaluado
   onSubmit: (respuestas: Record<string, 1 | 2 | 3 | 4>, comentarios: string) => Promise<void>;
   onCancel?: () => void;
   showLeaderFeedback?: boolean; // Muestra campos de feedback hacia el líder (fortalezas + mejoras)
@@ -35,6 +35,7 @@ export default function DynamicEvaluationForm({
   const [submitting, setSubmitting] = useState(false);
   const [missingIds, setMissingIds] = useState<Set<string>>(new Set());
   const [leaderFeedbackError, setLeaderFeedbackError] = useState('');
+  const [comentarioError, setComentarioError] = useState('');
   const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Cargar preguntas al montar el componente
@@ -108,6 +109,13 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
       }
       setLeaderFeedbackError('');
     }
+
+    // Validar feedback del líder al analista (obligatorio)
+    if (!showLeaderFeedback && tipoEvaluador === 'JEFE' && !comentarios.trim()) {
+      setComentarioError('El feedback para la persona evaluada es obligatorio.');
+      return;
+    }
+    setComentarioError('');
 
     try {
       setSubmitting(true);
@@ -263,19 +271,29 @@ const RATING_LABELS: Record<1 | 2 | 3 | 4, string> = {
           <section>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               {tipoEvaluador === 'JEFE'
-                ? `💬 Feedback para ${evaluado.nombre} (Opcional)`
+                ? `💬 Feedback para ${evaluado.nombre} (Obligatorio)`
                 : 'Comentarios Generales (Opcional)'}
             </label>
+            {comentarioError && (
+              <p className="text-xs text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200 mb-2">
+                ⚠ {comentarioError}
+              </p>
+            )}
             <textarea
               value={comentarios}
-              onChange={(e) => setComentarios(e.target.value)}
+              onChange={(e) => {
+                setComentarios(e.target.value);
+                if (comentarioError) setComentarioError('');
+              }}
               placeholder={
                 tipoEvaluador === 'JEFE'
                   ? 'Escribí un comentario o feedback sobre su desempeño...'
                   : 'Agrega comentarios adicionales sobre el desempeño...'
               }
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                comentarioError ? 'border-red-400' : 'border-gray-300'
+              }`}
               disabled={submitting}
             />
             {tipoEvaluador === 'JEFE' && (
