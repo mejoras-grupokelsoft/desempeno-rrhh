@@ -66,7 +66,11 @@ Crear un archivo `.env` en la raíz (nunca commitear):
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...
 VITE_GOOGLE_CLIENT_ID=xxxxx.apps.googleusercontent.com
-VITE_GOOGLE_SCRIPT_URL=https://script.google.com/macros/s/.../exec
+
+# Envío de reportes por email (Netlify Function, ver netlify/functions/send-email.mts)
+GMAIL_USER=capitalhumano@grupokelsoft.com
+GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx
+GMAIL_FROM_EMAIL=Evaluación de Desempeño <capitalhumano@grupokelsoft.com>
 ```
 
 ## Comandos
