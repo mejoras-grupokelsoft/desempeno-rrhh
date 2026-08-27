@@ -16,8 +16,8 @@ interface EmailRequestBody {
   destinatarios: string[];
   asunto: string;
   cuerpoHTML: string;
-  pdfBase64: string;
-  nombreArchivo: string;
+  pdfBase64?: string;
+  nombreArchivo?: string;
 }
 
 export default async (req: Request) => {
@@ -44,8 +44,11 @@ export default async (req: Request) => {
 
   const { destinatarios, asunto, cuerpoHTML, pdfBase64, nombreArchivo } = body;
 
-  if (!destinatarios?.length || !asunto || !cuerpoHTML || !pdfBase64 || !nombreArchivo) {
-    return jsonResponse({ error: true, message: 'Faltan datos requeridos (destinatarios, asunto, cuerpoHTML, pdfBase64, nombreArchivo)' }, 400);
+  if (!destinatarios?.length || !asunto || !cuerpoHTML) {
+    return jsonResponse({ error: true, message: 'Faltan datos requeridos (destinatarios, asunto, cuerpoHTML)' }, 400);
+  }
+  if ((pdfBase64 && !nombreArchivo) || (!pdfBase64 && nombreArchivo)) {
+    return jsonResponse({ error: true, message: 'pdfBase64 y nombreArchivo deben enviarse juntos' }, 400);
   }
 
   const fromEmail = process.env.GMAIL_FROM_EMAIL || `"Capital Humano Kelsoft" <${gmailUser}>`;
@@ -67,13 +70,9 @@ export default async (req: Request) => {
         to: destinatario,
         subject: asunto,
         html: cuerpoHTML,
-        attachments: [
-          {
-            filename: nombreArchivo,
-            content: pdfBase64,
-            encoding: 'base64',
-          },
-        ],
+        ...(pdfBase64 && nombreArchivo
+          ? { attachments: [{ filename: nombreArchivo, content: pdfBase64, encoding: 'base64' as const }] }
+          : {}),
       });
       enviados.push(destinatario);
     } catch (err) {

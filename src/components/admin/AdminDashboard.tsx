@@ -7,8 +7,9 @@ import AdminAreasPanel from './AdminAreasPanel';
 import AdminTeamsPanel from './AdminTeamsPanel';
 import AdminSeedPanel from './AdminSeedPanel';
 import AdminDataImport from './AdminDataImport';
+import AdminEmailTemplatePanel from './AdminEmailTemplatePanel';
 
-type AdminTab = 'questions' | 'skills' | 'users' | 'areas' | 'teams' | 'seed' | 'import';
+type AdminTab = 'questions' | 'skills' | 'users' | 'areas' | 'teams' | 'emailTemplate' | 'seed' | 'import';
 
 export default function AdminDashboard() {
   const { currentUser } = useApp();
@@ -31,6 +32,7 @@ export default function AdminDashboard() {
     { key: 'users', label: '👥 Usuarios' },
     { key: 'areas', label: '🏢 Áreas' },
     { key: 'teams', label: '👨‍💼 Equipos' },
+    { key: 'emailTemplate', label: '✉️ Plantilla de Email' },
     // { key: 'seed', label: '🌱 Datos de Prueba' },
     // { key: 'import', label: '📊 Importar Datos' },
   ];
@@ -76,6 +78,7 @@ export default function AdminDashboard() {
         {activeTab === 'users' && <AdminUsersPanel />}
         {activeTab === 'areas' && <AdminAreasPanel />}
         {activeTab === 'teams' && <AdminTeamsPanel />}
+        {activeTab === 'emailTemplate' && <AdminEmailTemplatePanel />}
         {/* {activeTab === 'seed' && <AdminSeedPanel />} */}
         {/* {activeTab === 'import' && <AdminDataImport />} */}
       </div>

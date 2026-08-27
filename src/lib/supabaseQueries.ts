@@ -2,6 +2,7 @@
 import { supabase } from './supabase';
 import type { User, SupabaseEvaluation, SupabaseSkillMatrix, SupabaseQuestion, SupabaseUserArea } from '../types';
 import { matchesRolObjetivo } from '../utils/puesto';
+import { sanitizeTemplateHtml, sanitizeTemplateAsunto } from '../utils/sanitize';
 
 // Normaliza el parámetro rolObjetivo (un valor o varios) a un array, o null si no hay filtro
 function normalizeRolObjetivo(rolObjetivo?: string | string[] | null): string[] | null {
@@ -625,6 +626,78 @@ export async function fetchLeaderEmailForUser(userEmail: string): Promise<string
   }
   const leaderEmail = (data as any)?.teams?.leader_email as string | undefined;
   return leaderEmail && leaderEmail.toLowerCase() !== userEmail.toLowerCase() ? leaderEmail : null;
+}
+
+/** Flags de team_members (autoevaluación / evaluación de líder esperadas) para todos los usuarios */
+export async function fetchTeamMemberFlags(): Promise<{
+  user_email: string;
+  performs_self_evaluation: boolean;
+  receives_evaluation_from_leader: boolean;
+}[]> {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('user_email, performs_self_evaluation, receives_evaluation_from_leader');
+
+  if (error) {
+    console.error('Error fetching team member flags:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// ============= PLANTILLAS DE EMAIL =============
+
+export interface EmailTemplateRow {
+  asunto: string;
+  cuerpoHtml: string;
+}
+
+/**
+ * Obtiene la plantilla editable de email guardada para un tipo, o null si no se guardó ninguna (usar default).
+ * Se sanitiza acá (no solo al guardar) porque la tabla es escribible por cualquiera con la anon key
+ * (mismo modelo "soft auth" del resto de la app) — este es el único punto por el que pasa el HTML
+ * antes de mandarse por email o mostrarse en la vista previa del admin.
+ */
+export async function fetchEmailTemplate(tipo: 'reporte' | 'recordatorio'): Promise<EmailTemplateRow | null> {
+  const { data, error } = await supabase
+    .from('email_templates')
+    .select('asunto, cuerpo_html')
+    .eq('tipo', tipo)
+    .maybeSingle();
+
+  if (error || !data) {
+    if (error) console.error('Error fetching email template:', error);
+    return null;
+  }
+  return {
+    asunto: sanitizeTemplateAsunto(data.asunto),
+    cuerpoHtml: sanitizeTemplateHtml(data.cuerpo_html),
+  };
+}
+
+/** Guarda (crea o actualiza) la plantilla editable de email de un tipo */
+export async function saveEmailTemplate(
+  tipo: 'reporte' | 'recordatorio',
+  template: EmailTemplateRow,
+  updatedBy: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('email_templates')
+    .upsert(
+      {
+        tipo,
+        asunto: sanitizeTemplateAsunto(template.asunto),
+        cuerpo_html: sanitizeTemplateHtml(template.cuerpoHtml),
+        updated_by: updatedBy,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'tipo' }
+    );
+
+  if (error) {
+    console.error('Error saving email template:', error);
+    throw error;
+  }
 }
 
 /**

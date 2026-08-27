@@ -1,56 +1,92 @@
 // src/utils/__tests__/emailService.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { generarCuerpoEmail, enviarEmailConPDF } from '../emailService';
-import type { EmailRequest } from '../emailService';
+import { generarCuerpoEmail, generarCuerpoRecordatorio, enviarEmailConPDF } from '../emailService';
+import type { EmailRequest, ResultadoEvaluacion } from '../emailService';
+
+const resultado: ResultadoEvaluacion = {
+  promedioAuto: 3.2,
+  promedioJefe: 3.6,
+  promedioFinal: 3.4,
+  seniorityAlcanzado: 'Semi Senior',
+};
 
 // =====================================================================
 // generarCuerpoEmail
 // =====================================================================
 describe('generarCuerpoEmail', () => {
   it('incluye el nombre del evaluado', () => {
-    const html = generarCuerpoEmail('Juan Pérez', 'Q2 2025');
+    const html = generarCuerpoEmail('Juan Pérez');
     expect(html).toContain('Juan Pérez');
   });
 
   it('contiene texto oficial de Capital Humano', () => {
-    const html = generarCuerpoEmail('Test', 'Q1');
-    expect(html).toContain('Gracias por completar tu autoevaluación de desempeño');
-    expect(html).toContain('evaluación por parte de tu líder');
+    const html = generarCuerpoEmail('Test');
+    expect(html).toContain('El proceso de evaluación de desempeño ha concluido');
     expect(html).toContain('reunión de feedback');
     expect(html).toContain('herramienta de crecimiento');
   });
 
-  it('incluye firma de Equipo de Capital Humano KELSOFT', () => {
-    const html = generarCuerpoEmail('Test', 'Q1');
-    expect(html).toContain('Equipo de Capital Humano KELSOFT');
+  it('incluye firma de Capital Humano', () => {
+    const html = generarCuerpoEmail('Test');
+    expect(html).toContain('Capital Humano — capital.humano@grupokelsoft.com');
+  });
+
+  it('incluye el resumen de puntajes cuando se proporciona un resultado', () => {
+    const html = generarCuerpoEmail('Test', undefined, resultado);
+    expect(html).toContain('Resumen de tu Evaluación Final');
+    expect(html).toContain('Semi Senior');
+  });
+
+  it('NO incluye el resumen de puntajes sin resultado', () => {
+    const html = generarCuerpoEmail('Test');
+    expect(html).not.toContain('Resumen de tu Evaluación Final');
   });
 
   it('incluye comentario de RRHH cuando se proporciona', () => {
-    const html = generarCuerpoEmail('Test', 'Q1', 'Excelente rendimiento');
+    const html = generarCuerpoEmail('Test', 'Excelente rendimiento');
     expect(html).toContain('Excelente rendimiento');
-    expect(html).toContain('Observaciones adicionales');
+    expect(html).toContain('Observaciones de Capital Humano');
   });
 
   it('NO incluye sección de observaciones sin comentario', () => {
-    const html = generarCuerpoEmail('Test', 'Q1');
-    expect(html).not.toContain('Observaciones adicionales');
+    const html = generarCuerpoEmail('Test');
+    expect(html).not.toContain('Observaciones de Capital Humano');
   });
 
   it('NO incluye sección de observaciones con string vacío', () => {
-    const html = generarCuerpoEmail('Test', 'Q1', '');
-    expect(html).not.toContain('Observaciones adicionales');
+    const html = generarCuerpoEmail('Test', '');
+    expect(html).not.toContain('Observaciones de Capital Humano');
   });
 
   it('genera HTML válido con estructura de email', () => {
-    const html = generarCuerpoEmail('Test', 'Q1');
+    const html = generarCuerpoEmail('Test');
     expect(html).toContain('<div');
     expect(html).toContain('Evaluación de Desempeño');
     expect(html).toContain('Grupo Kelsoft');
   });
 
   it('incluye disclaimer de email automático', () => {
-    const html = generarCuerpoEmail('Test', 'Q1');
+    const html = generarCuerpoEmail('Test');
     expect(html).toContain('email fue enviado automáticamente');
+  });
+
+  it('permite sobreescribir la plantilla (asunto/cuerpo editables)', () => {
+    const html = generarCuerpoEmail('Test', undefined, undefined, {
+      asunto: 'Asunto custom',
+      cuerpoHtml: '<p>Hola {{nombre}}, texto custom.</p>',
+    });
+    expect(html).toContain('Hola Test, texto custom.');
+  });
+});
+
+// =====================================================================
+// generarCuerpoRecordatorio
+// =====================================================================
+describe('generarCuerpoRecordatorio', () => {
+  it('incluye el nombre y el texto de recordatorio', () => {
+    const html = generarCuerpoRecordatorio('Juan Pérez');
+    expect(html).toContain('Juan Pérez');
+    expect(html).toContain('todavía no completaste tu evaluación');
   });
 });
 
@@ -91,6 +127,24 @@ describe('enviarEmailConPDF', () => {
     expect(body.nombreArchivo).toBe('test.pdf');
 
     expect(result.success).toBe(true);
+  });
+
+  it('no incluye pdfBase64/nombreArchivo cuando no se proporcionan (email sin adjunto)', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({ message: 'Enviado', enviados: ['test@example.com'], fallidos: [] }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await enviarEmailConPDF({
+      destinatarios: ['test@example.com'],
+      asunto: 'Recordatorio',
+      cuerpoHTML: '<p>Test</p>',
+    });
+
+    const [, options] = mockFetch.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body.pdfBase64).toBeUndefined();
+    expect(body.nombreArchivo).toBeUndefined();
   });
 
   it('maneja respuesta de error del servidor', async () => {

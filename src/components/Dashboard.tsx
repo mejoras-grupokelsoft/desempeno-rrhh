@@ -12,11 +12,11 @@ import {
 import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import PeriodFilter from './shared/PeriodFilter';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
-import { pdfToBase64, generarCuerpoEmail, enviarEmailConPDF } from '../utils/emailService';
+import { pdfToBase64, generarCuerpoEmail, generarAsuntoEmail, enviarEmailConPDF } from '../utils/emailService';
 import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
 import { resolveRolObjetivos } from '../utils/puesto';
 import { useTeamAccess } from '../hooks/useTeamAccess';
-import { fetchLeaderEmailForUser } from '../lib/supabaseQueries';
+import { fetchLeaderEmailForUser, fetchEmailTemplate } from '../lib/supabaseQueries';
 import PersonaRadarPanel from '../components/PersonaRadarPanel';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -578,16 +578,18 @@ export default function Dashboard() {
     try {
       const pdf = await generarPDFIndividual(result.pdfData);
       const pdfBase64 = pdfToBase64(pdf);
+      const template = await fetchEmailTemplate('reporte');
 
       const cuerpoHTML = generarCuerpoEmail(
         mostrarEvaluado.nombre,
-        result.periodoLabel,
-        sanitizeText(comentarioRRHH) || undefined
+        sanitizeText(comentarioRRHH) || undefined,
+        undefined,
+        template || undefined
       );
 
       const response = await enviarEmailConPDF({
         destinatarios: todosDestinatarios,
-        asunto: `Reporte de Evaluación de Desempeño - ${mostrarEvaluado.nombre}`,
+        asunto: generarAsuntoEmail(mostrarEvaluado.nombre, template || undefined),
         cuerpoHTML,
         pdfBase64,
         nombreArchivo: result.nombreArchivo,

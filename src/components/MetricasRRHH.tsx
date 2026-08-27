@@ -11,10 +11,18 @@ import type { Seniority } from '../types';
 import jsPDF from 'jspdf';
 import { generarPDFIndividual, generarPDFConsolidado, type PDFReporteData } from '../utils/pdfGenerator';
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
-import { generarCuerpoEmail, enviarEmailConPDF, pdfToBase64, type ResultadoEvaluacion } from '../utils/emailService';
+import {
+  generarCuerpoEmail,
+  generarAsuntoEmail,
+  generarCuerpoRecordatorio,
+  generarAsuntoRecordatorio,
+  enviarEmailConPDF,
+  pdfToBase64,
+  type ResultadoEvaluacion,
+} from '../utils/emailService';
 import { normalizeText, logger } from '../utils/sanitize';
 import { resolveRolObjetivos } from '../utils/puesto';
-import { fetchLeaderEmailForUser } from '../lib/supabaseQueries';
+import { fetchLeaderEmailForUser, fetchEmailTemplate, fetchTeamMemberFlags } from '../lib/supabaseQueries';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
 import PersonaRadarPanel from './PersonaRadarPanel';
@@ -42,6 +50,16 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
   const [fechaFin, setFechaFin] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Flags de team_members (qué se espera de cada persona), usado por personasPendientes más abajo
+  const [teamMemberFlags, setTeamMemberFlags] = useState<{
+    user_email: string;
+    performs_self_evaluation: boolean;
+    receives_evaluation_from_leader: boolean;
+  }[]>([]);
+  useEffect(() => {
+    fetchTeamMemberFlags().then(setTeamMemberFlags);
+  }, []);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -181,6 +199,37 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     if (!selectedSeniority) return resultadosPorPersona;
     return resultadosPorPersona.filter(p => p.seniorityAlcanzado === selectedSeniority);
   }, [resultadosPorPersona, selectedSeniority]);
+
+  // Personas que todavía no completaron su evaluación (autoevaluación y/o evaluación del líder)
+  // en el período/área filtrados. Solo se consideran usuarios con registro en team_members,
+  // ya que ahí se define qué se espera de cada uno (performs_self_evaluation / receives_evaluation_from_leader).
+  const personasPendientes = useMemo(() => {
+    // Un usuario puede pertenecer a más de un equipo: se agregan los flags con OR
+    // (si en cualquiera de sus equipos se espera que haga X, se lo considera esperado).
+    const flagsByEmail = new Map<string, { performs_self_evaluation: boolean; receives_evaluation_from_leader: boolean }>();
+    teamMemberFlags.forEach(t => {
+      const prev = flagsByEmail.get(t.user_email);
+      flagsByEmail.set(t.user_email, {
+        performs_self_evaluation: (prev?.performs_self_evaluation ?? false) || t.performs_self_evaluation,
+        receives_evaluation_from_leader: (prev?.receives_evaluation_from_leader ?? false) || t.receives_evaluation_from_leader,
+      });
+    });
+    const usuariosFiltrados = selectedArea ? users.filter(u => u.area === selectedArea) : users;
+
+    return usuariosFiltrados.reduce<{ email: string; nombre: string; area: string; faltaAuto: boolean; faltaJefe: boolean }[]>((acc, u) => {
+      const flags = flagsByEmail.get(u.email);
+      if (!flags) return acc;
+      const evalsUsuario = filteredEvaluations.filter(e => e.evaluadoEmail === u.email);
+      const tieneAuto = evalsUsuario.some(e => e.tipoEvaluador === 'AUTO');
+      const tieneJefe = evalsUsuario.some(e => e.tipoEvaluador === 'JEFE');
+      const faltaAuto = flags.performs_self_evaluation && !tieneAuto;
+      const faltaJefe = flags.receives_evaluation_from_leader && !tieneJefe;
+      if (faltaAuto || faltaJefe) {
+        acc.push({ email: u.email, nombre: u.nombre, area: u.area || '', faltaAuto, faltaJefe });
+      }
+      return acc;
+    }, []);
+  }, [users, teamMemberFlags, filteredEvaluations, selectedArea]);
 
   // Seniority disponibles según filtros activos
   const seniorityDisponibles = useMemo(() => {
@@ -355,6 +404,12 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
   const [isSendingBulk, setIsSendingBulk] = useState(false);
   const [bulkEmailStatus, setBulkEmailStatus] = useState<{ sent: number; failed: number; total: number } | null>(null);
   const [bulkConfirmModal, setBulkConfirmModal] = useState<{ isOpen: boolean; count: number }>({ isOpen: false, count: 0 });
+
+  // Estado para recordatorio de evaluación pendiente
+  const [selectedForReminder, setSelectedForReminder] = useState<Set<string>>(new Set());
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState<{ sent: number; failed: number; total: number } | null>(null);
+  const [reminderConfirmModal, setReminderConfirmModal] = useState<{ isOpen: boolean; count: number }>({ isOpen: false, count: 0 });
 
   // Estado para drill-down (desglose de skills) - ahora inline
   const [drillDownPersona, setDrillDownPersona] = useState<{
@@ -640,6 +695,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     setBulkEmailStatus(null);
 
     const personasSeleccionadas = filteredResultados.filter(p => selectedForEmail.has(p.email));
+    const template = await fetchEmailTemplate('reporte');
     let sent = 0;
     let failed = 0;
 
@@ -654,14 +710,14 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
           area: persona.area,
           rol: persona.rol,
         };
-        const cuerpo = generarCuerpoEmail(persona.nombre, 'S Actual', undefined, resultado);
+        const cuerpo = generarCuerpoEmail(persona.nombre, undefined, resultado, template || undefined);
         const pdfBase64 = pdfToBase64(pdf);
         const leaderEmail = await fetchLeaderEmailForUser(persona.email);
         const destinatarios = leaderEmail ? [persona.email, leaderEmail] : [persona.email];
 
         const res = await enviarEmailConPDF({
           destinatarios,
-          asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
+          asunto: generarAsuntoEmail(persona.nombre, template || undefined),
           cuerpoHTML: cuerpo,
           pdfBase64,
           nombreArchivo,
@@ -682,6 +738,54 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     setSelectedForEmail(new Set());
   };
 
+  // Handler envío de recordatorios a quienes no completaron su evaluación
+  const handleInitiateBulkSendReminders = () => {
+    if (selectedForReminder.size === 0) return;
+    if (selectedForReminder.size > 50) {
+      alert('⚠️ Máximo 50 personas por envío. Por favor selecciona menos personas.');
+      return;
+    }
+    if (selectedForReminder.size > 5) {
+      setReminderConfirmModal({ isOpen: true, count: selectedForReminder.size });
+    } else {
+      handleBulkSendReminders();
+    }
+  };
+
+  const handleBulkSendReminders = async () => {
+    if (selectedForReminder.size === 0) return;
+    setIsSendingReminders(true);
+    setReminderStatus(null);
+
+    const personasSeleccionadas = personasPendientes.filter(p => selectedForReminder.has(p.email));
+    const template = await fetchEmailTemplate('recordatorio');
+    let sent = 0;
+    let failed = 0;
+
+    for (const persona of personasSeleccionadas) {
+      try {
+        const cuerpo = generarCuerpoRecordatorio(persona.nombre, template || undefined);
+        const res = await enviarEmailConPDF({
+          destinatarios: [persona.email],
+          asunto: generarAsuntoRecordatorio(persona.nombre, template || undefined),
+          cuerpoHTML: cuerpo,
+        });
+
+        if (res.success) {
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    setIsSendingReminders(false);
+    setReminderStatus({ sent, failed, total: personasSeleccionadas.length });
+    setSelectedForReminder(new Set());
+  };
+
   // Función para generar PDF individual — descargar y enviar son acciones independientes
   const handleGenerarPDFIndividual = async (doSendEmail: boolean = false) => {
     if (!personaParaPDF) return;
@@ -700,11 +804,12 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
           area: personaParaPDF.area,
           rol: personaParaPDF.rol,
         };
+        const template = await fetchEmailTemplate('reporte');
         const cuerpo = generarCuerpoEmail(
           personaParaPDF.nombre,
-          'S Actual',
           comentarioRRHH.trim() || undefined,
           resultado,
+          template || undefined,
         );
         const pdfBase64 = pdfToBase64(pdf);
         const leaderEmail = await fetchLeaderEmailForUser(personaParaPDF.email);
@@ -712,7 +817,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
 
         const res = await enviarEmailConPDF({
           destinatarios,
-          asunto: `Resultados de tu Evaluación de Desempeño - Kelsoft`,
+          asunto: generarAsuntoEmail(personaParaPDF.nombre, template || undefined),
           cuerpoHTML: cuerpo,
           pdfBase64,
           nombreArchivo,
@@ -1503,6 +1608,140 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       {/* ── TAB: INDIVIDUAL ────────────────────────────── */}
       {activeMainTab === 'individual' && <>
 
+      {/* Pendientes de Evaluación */}
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Pendientes de Evaluación
+            {personasPendientes.length > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                {personasPendientes.length}
+              </span>
+            )}
+          </h3>
+          {personasPendientes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  if (selectedForReminder.size === personasPendientes.length) {
+                    setSelectedForReminder(new Set());
+                  } else {
+                    setSelectedForReminder(new Set(personasPendientes.map(p => p.email)));
+                  }
+                }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-stone-200 text-stone-700 hover:bg-stone-50 transition"
+              >
+                {selectedForReminder.size === personasPendientes.length && personasPendientes.length > 0
+                  ? '☐ Deseleccionar todos'
+                  : '☑ Seleccionar todos'}
+              </button>
+              {selectedForReminder.size > 0 && (
+                <button
+                  onClick={handleInitiateBulkSendReminders}
+                  disabled={isSendingReminders}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed transition font-semibold text-sm shadow-sm hover:shadow-md"
+                >
+                  {isSendingReminders ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Enviando…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      Enviar recordatorio a {selectedForReminder.size} {selectedForReminder.size === 1 ? 'persona' : 'personas'}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {reminderStatus && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 text-sm font-semibold ${
+            reminderStatus.failed === 0
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : reminderStatus.sent === 0
+              ? 'bg-red-50 text-red-800 border border-red-200'
+              : 'bg-amber-50 text-amber-800 border border-amber-200'
+          }`}>
+            <span>{reminderStatus.failed === 0 ? '✅' : reminderStatus.sent === 0 ? '❌' : '⚠️'}</span>
+            <span>
+              Recordatorios enviados: <strong>{reminderStatus.sent}</strong> de {reminderStatus.total}
+              {reminderStatus.failed > 0 && ` · Fallidos: ${reminderStatus.failed}`}
+            </span>
+            <button onClick={() => setReminderStatus(null)} className="ml-auto text-xs underline opacity-60 hover:opacity-100">
+              Cerrar
+            </button>
+          </div>
+        )}
+
+        {personasPendientes.length === 0 ? (
+          <p className="text-sm text-stone-500 py-6 text-center">Todos completaron su evaluación en este período. 🎉</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-stone-200">
+                <th className="p-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedForReminder.size === personasPendientes.length && personasPendientes.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedForReminder(new Set(personasPendientes.map(p => p.email)));
+                      } else {
+                        setSelectedForReminder(new Set());
+                      }
+                    }}
+                    className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    title="Seleccionar / deseleccionar todos"
+                  />
+                </th>
+                <th className="text-left p-3 font-bold text-stone-700">Nombre</th>
+                <th className="text-left p-3 font-bold text-stone-700">Área</th>
+                <th className="text-left p-3 font-bold text-stone-700">Falta completar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {personasPendientes.map((persona) => (
+                <tr
+                  key={persona.email}
+                  className={`border-b border-stone-100 transition ${selectedForReminder.has(persona.email) ? 'bg-amber-50' : ''}`}
+                >
+                  <td className="p-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedForReminder.has(persona.email)}
+                      onChange={(e) => {
+                        const next = new Set(selectedForReminder);
+                        if (e.target.checked) next.add(persona.email);
+                        else next.delete(persona.email);
+                        setSelectedForReminder(next);
+                      }}
+                      className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    />
+                  </td>
+                  <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
+                  <td className="p-3 text-stone-600">{persona.area}</td>
+                  <td className="p-3 text-stone-600">
+                    {[persona.faltaAuto && 'Autoevaluación', persona.faltaJefe && 'Evaluación del líder'].filter(Boolean).join(' + ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {/* Tabla de Resultados Individuales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto">
         {/* Encabezado con controles masivos */}
@@ -2118,6 +2357,52 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                   handleBulkSendEmails();
                 }}
                 className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg font-semibold text-sm hover:bg-orange-600 transition"
+              >
+                Confirmar envío
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para envío masivo de recordatorios */}
+      {reminderConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-6">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4v2m0 4v2m0-14v2m0-4v2m0 4v2M7.08 6.06L5.648 4.617m1.414 1.414l1.414 1.414m-1.414-1.414L5.648 7.505m1.414-1.414l1.414-1.414M17.92 6.06l1.414-1.413m-1.414 1.414l1.414 1.414m-1.414-1.414l-1.414-1.414m1.414 1.414l-1.414 1.414" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Confirmar envío de recordatorios</h3>
+                <p className="text-sm text-stone-600 mt-1">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 rounded-lg p-4 mb-6 border border-amber-200">
+              <p className="text-sm text-amber-900">
+                Vas a enviar <strong className="text-lg">{reminderConfirmModal.count}</strong> email{reminderConfirmModal.count !== 1 ? 's' : ''} de recordatorio de evaluación pendiente.
+              </p>
+              <p className="text-xs text-amber-700 mt-2">
+                ⏱️ El proceso puede tomar algunos minutos. No cierres esta página mientras se envían.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setReminderConfirmModal({ isOpen: false, count: 0 })}
+                className="flex-1 px-4 py-3 rounded-lg border border-stone-200 text-stone-700 font-semibold text-sm hover:bg-stone-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setReminderConfirmModal({ isOpen: false, count: 0 });
+                  handleBulkSendReminders();
+                }}
+                className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-lg font-semibold text-sm hover:bg-amber-600 transition"
               >
                 Confirmar envío
               </button>
