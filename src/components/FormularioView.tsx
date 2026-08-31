@@ -17,7 +17,7 @@ type Tab = 'autoeval' | 'equipo' | 'historial';
 type EquipoSubTab = 'evaluar' | 'notas';
 
 export default function FormularioView() {
-  const { currentUser, users } = useApp();
+  const { currentUser, users, currentPeriodo } = useApp();
   const { loading, error, shouldSelfEvaluate, shouldEvaluateTeam, memberEmailsToEvaluate, teamsAsLeader } = useTeamAccess(currentUser);
   const [tab, setTab] = useState<Tab>('autoeval');
   const [equipoSubTab, setEquipoSubTab] = useState<EquipoSubTab>('evaluar');
@@ -75,7 +75,7 @@ export default function FormularioView() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Formularios de Evaluación</h2>
-        <p className="text-stone-500 text-sm mt-1">Período activo: {currentUser && '2024-S1'}</p>
+        <p className="text-stone-500 text-sm mt-1">Período activo: {currentPeriodo}</p>
       </div>
 
       {/* Tabs — siempre visible (historial para todos) */}

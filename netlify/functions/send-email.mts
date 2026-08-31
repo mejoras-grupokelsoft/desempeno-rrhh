@@ -51,7 +51,7 @@ export default async (req: Request) => {
     return jsonResponse({ error: true, message: 'pdfBase64 y nombreArchivo deben enviarse juntos' }, 400);
   }
 
-  const fromEmail = process.env.GMAIL_FROM_EMAIL || `"Capital Humano Kelsoft" <${gmailUser}>`;
+  const fromEmail = process.env.GMAIL_FROM_EMAIL || `"Capital Humano KELSOFT" <${gmailUser}>`;
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',

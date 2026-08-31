@@ -54,7 +54,7 @@ const PARRAFO = 'color: #374151; font-size: 15px; line-height: 1.6; margin: 0 0 
 
 export const DEFAULT_TEMPLATES: Record<'reporte' | 'recordatorio', EmailTemplate> = {
   reporte: {
-    asunto: 'Resultados de tu Evaluación de Desempeño - Kelsoft',
+    asunto: 'Resultados de tu Evaluación de Desempeño - KELSOFT',
     cuerpoHtml: `
         <p style="${PARRAFO}">
           Hola <strong>{{nombre}}</strong>,
@@ -88,7 +88,7 @@ export const DEFAULT_TEMPLATES: Record<'reporte' | 'recordatorio', EmailTemplate
         </p>`.trim(),
   },
   recordatorio: {
-    asunto: 'Recordatorio: Completá tu Evaluación de Desempeño - Kelsoft',
+    asunto: 'Recordatorio: Completá tu Evaluación de Desempeño - KELSOFT',
     cuerpoHtml: `
         <p style="${PARRAFO}">
           Hola <strong>{{nombre}}</strong>,
@@ -183,7 +183,7 @@ function wrapEmailChrome(tituloHeader: string, innerHtml: string): string {
           ${tituloHeader}
         </h1>
         <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">
-          Grupo Kelsoft · Equipo de Capital Humano
+          Grupo KELSOFT · Equipo de Capital Humano
         </p>
       </div>
 
@@ -193,7 +193,7 @@ function wrapEmailChrome(tituloHeader: string, innerHtml: string): string {
 
       <div style="background: #f3f4f6; padding: 16px 32px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
         <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
-          Este email fue enviado automáticamente desde el Sistema de Evaluación de Desempeño · Grupo Kelsoft
+          Este email fue enviado automáticamente desde el Sistema de Evaluación de Desempeño · Grupo KELSOFT
         </p>
       </div>
     </div>

@@ -62,7 +62,7 @@ describe('generarCuerpoEmail', () => {
     const html = generarCuerpoEmail('Test');
     expect(html).toContain('<div');
     expect(html).toContain('Evaluación de Desempeño');
-    expect(html).toContain('Grupo Kelsoft');
+    expect(html).toContain('Grupo KELSOFT');
   });
 
   it('incluye disclaimer de email automático', () => {

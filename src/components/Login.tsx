@@ -19,51 +19,17 @@ interface CredentialResponse {
 }
 
 export default function Login() {
-  const { users, evaluations, setCurrentUser, loading, error: apiError } = useApp();
+  const { users, setCurrentUser, loading, error: apiError } = useApp();
   const { dark, toggle: toggleDark } = useTheme();
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [devEmail, setDevEmail] = useState<string>('');
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  
-  // QA: Modo pruebas habilitado en todos los entornos
-  const isDevelopment = true;
-  const isQA = !(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-  // Modo desarrollo bypass
-  const handleDevLogin = () => {
-    const emailInput = sanitizeEmail(devEmail);
-    if (!emailInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
-      setError('Ingresá un email válido.');
-      return;
-    }
-    const user = users.find((u) => u.email.toLowerCase().trim() === emailInput);
-    
-    if (user) {
-      setCurrentUser(user);
-    } else {
-      // Modo testeo: si el email tiene evaluaciones, crear usuario temporal
-      const tieneEvals = evaluations.some(e => e.evaluadoEmail.toLowerCase().trim() === emailInput);
-      if (tieneEvals) {
-        const firstEval = evaluations.find(e => e.evaluadoEmail.toLowerCase().trim() === emailInput)!;
-        const nombre = firstEval.evaluadoNombre || emailInput;
-        // Determinar rol según origen de evaluación
-        const esLider = evaluations.some(e => e.evaluadorEmail?.toLowerCase().trim() === emailInput);
-        const rol = esLider ? 'Lider' : 'Analista';
-        setCurrentUser({
-          email: emailInput,
-          nombre,
-          rol,
-          area: firstEval.area || 'Sin área',
-        });
-      } else {
-        setError(`Email "${emailInput}" no encontrado en la base de datos.`);
-      }
-    }
-  };
+  // Mostrar modo desarrollo siempre en localhost
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   // Login con email + password
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
@@ -194,7 +160,7 @@ export default function Login() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <span className="text-slate-400 text-sm font-medium">Grupo Kelsoft · Evaluación de Desempeño</span>
+            <span className="text-slate-400 text-sm font-medium">Grupo KELSOFT · Evaluación de Desempeño</span>
           </div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-white leading-snug tracking-tight">
             Tu crecimiento profesional, en tus manos.
