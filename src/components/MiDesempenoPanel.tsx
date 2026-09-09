@@ -1,17 +1,20 @@
 // src/components/MiDesempenoPanel.tsx
 // Panel de "Mi Desempeño" reutilizable para Lider, Director (Analista individual), etc.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Evaluation } from '../types';
 import type { Seniority, RadarDataPoint } from '../types';
 import { calcularSeniorityAlcanzado, calcularPromedioGeneral } from '../utils/calculations';
 import { comparePersonaBetweenPeriods } from '../utils/dateUtils';
+import { fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
+import { logger } from '../utils/sanitize';
+import { resolveSkillsMatrixArea } from '../utils/puesto';
 import RadarChart from './RadarChart';
 
 interface MiDesempenoPanelProps {
   evaluaciones: Evaluation[];
   skillsMatrix: any[];
-  persona: { email: string; nombre: string; area?: string; rol?: string };
+  persona: { email: string; nombre: string; area?: string; rol?: string; puesto?: string | null };
   titulo?: string;
   /** Si true, solo muestra los badges y la sección de evolución (sin métricas ni pentágonos) */
   evolutionOnly?: boolean;
@@ -23,45 +26,46 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
   const [expandedSkills, setExpandedSkills] = useState({ mejoraron: false, empeoraron: false, iguales: false });
 
   const area = persona.area || '';
+  // skills_matrix.area no siempre coincide con persona.area (tildes, o el área está subdividida
+  // por especialidad/puesto, ej: Capital Humano) — ver resolveSkillsMatrixArea.
+  const matrixArea = resolveSkillsMatrixArea(area, persona.puesto);
 
   const rol = persona.rol || 'ANALISTA';
 
-  // Radar data computado inline (evita depender de la firma de transformarARadarData que varía entre versiones)
+  // Promedios reales por habilidad (desde responses → questions → skills) — la misma
+  // fuente de verdad que usa cada persona en su propio "Mi Desempeño". evaluaciones.puntaje/
+  // skillNombre son solo un placeholder ('general', 1) y no sirven para calcular nada.
+  const [skillRows, setSkillRows] = useState<SkillAvgRow[]>([]);
+  useEffect(() => {
+    if (!persona.email) return;
+    fetchPersonaSkillAverages(persona.email, undefined, area)
+      .then(setSkillRows)
+      .catch(err => logger.error('Error fetching persona skill averages:', err));
+  }, [persona.email, area]);
+
   const miRadarDataHard = useMemo((): RadarDataPoint[] => {
-    const skillMap = new Map<string, { auto: number[]; jefe: number[] }>();
-    evaluaciones.filter(e => e.skillTipo === 'HARD').forEach(e => {
-      if (!e.skillNombre) return;
-      if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { auto: [], jefe: [] });
-      const d = skillMap.get(e.skillNombre)!;
-      if (e.tipoEvaluador === 'AUTO') d.auto.push(e.puntaje);
-      else d.jefe.push(e.puntaje);
-    });
-    return Array.from(skillMap.entries()).map(([skill, d]) => {
-      const auto = d.auto.length > 0 ? d.auto.reduce((a, b) => a + b, 0) / d.auto.length : 0;
-      const jefe = d.jefe.length > 0 ? d.jefe.reduce((a, b) => a + b, 0) / d.jefe.length : 0;
-      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
-      const esperado = skillsMatrix.find(m => m.skillNombre === skill && m.area === area)?.valorEsperado ?? 3;
-      return { skill, auto, jefe, promedio: parseFloat(promedio.toFixed(2)), esperado };
-    });
-  }, [evaluaciones, skillsMatrix, rol, area]);
+    return skillRows
+      .filter(r => r.skill_tipo === 'HARD')
+      .map(r => ({
+        skill: r.skill_nombre,
+        auto: r.avg_auto ?? 0,
+        jefe: r.avg_jefe ?? 0,
+        promedio: parseFloat(r.avg_total.toFixed(2)),
+        esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.area === matrixArea)?.valorEsperado ?? 3,
+      }));
+  }, [skillRows, skillsMatrix, matrixArea]);
 
   const miRadarDataSoft = useMemo((): RadarDataPoint[] => {
-    const skillMap = new Map<string, { auto: number[]; jefe: number[] }>();
-    evaluaciones.filter(e => e.skillTipo === 'SOFT').forEach(e => {
-      if (!e.skillNombre) return;
-      if (!skillMap.has(e.skillNombre)) skillMap.set(e.skillNombre, { auto: [], jefe: [] });
-      const d = skillMap.get(e.skillNombre)!;
-      if (e.tipoEvaluador === 'AUTO') d.auto.push(e.puntaje);
-      else d.jefe.push(e.puntaje);
-    });
-    return Array.from(skillMap.entries()).map(([skill, d]) => {
-      const auto = d.auto.length > 0 ? d.auto.reduce((a, b) => a + b, 0) / d.auto.length : 0;
-      const jefe = d.jefe.length > 0 ? d.jefe.reduce((a, b) => a + b, 0) / d.jefe.length : 0;
-      const promedio = auto > 0 && jefe > 0 ? (auto + jefe) / 2 : (auto || jefe);
-      const esperado = skillsMatrix.find(m => m.skillNombre === skill && m.area === area)?.valorEsperado ?? 3;
-      return { skill, auto, jefe, promedio: parseFloat(promedio.toFixed(2)), esperado };
-    });
-  }, [evaluaciones, skillsMatrix, rol, area]);
+    return skillRows
+      .filter(r => r.skill_tipo === 'SOFT')
+      .map(r => ({
+        skill: r.skill_nombre,
+        auto: r.avg_auto ?? 0,
+        jefe: r.avg_jefe ?? 0,
+        promedio: parseFloat(r.avg_total.toFixed(2)),
+        esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.area === matrixArea)?.valorEsperado ?? 3,
+      }));
+  }, [skillRows, skillsMatrix, matrixArea]);
 
   const allRadarData = useMemo(() => [...miRadarDataHard, ...miRadarDataSoft], [miRadarDataHard, miRadarDataSoft]);
   const miPromedioGeneral = useMemo(() => calcularPromedioGeneral(allRadarData), [allRadarData]);

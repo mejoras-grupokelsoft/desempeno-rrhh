@@ -4,6 +4,7 @@ import type { Evaluation, User, RadarDataPoint } from '../types';
 import { obtenerValorEsperado, calcularSeniorityAlcanzado } from '../utils/calculations';
 import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
 import { fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
+import { resolveSkillsMatrixArea } from '../utils/puesto';
 import { useApp } from '../context/AppContext';
 import RadarChart from './RadarChart';
 import OnboardingTooltip from './OnboardingTooltip';
@@ -96,9 +97,11 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
       .finally(() => setLoadingSkills(false));
   }, [currentUser.email]);
 
-  // Convertir SkillAvgRow → RadarDataPoint con valor esperado de skillsMatrix
+  // Convertir SkillAvgRow → RadarDataPoint con valor esperado de skills_matrix.
+  // skills_matrix.area no siempre coincide con users.area (tildes, o el área está subdividida
+  // por especialidad/puesto, ej: Capital Humano) — ver resolveSkillsMatrixArea.
   const radarDataHard = useMemo((): RadarDataPoint[] => {
-    const area = selectedArea || currentUser.area || '';
+    const area = resolveSkillsMatrixArea(selectedArea || currentUser.area, currentUser.puesto);
     // Si skills_matrix tiene configuración para esta área, solo mostrar esas skills
     const areaMatrix = skillsMatrix.filter(m => m.area === area);
     const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
@@ -114,10 +117,10 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
         promedio: r.avg_total,
         esperado: obtenerValorEsperado(skillsMatrix, r.skill_nombre, seniorityEsperado, area),
       }));
-  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area]);
+  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area, currentUser.puesto]);
 
   const radarDataSoft = useMemo((): RadarDataPoint[] => {
-    const area = selectedArea || currentUser.area || '';
+    const area = resolveSkillsMatrixArea(selectedArea || currentUser.area, currentUser.puesto);
     const areaMatrix = skillsMatrix.filter(m => m.area === area);
     const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
     return skillRows
@@ -132,7 +135,7 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
         promedio: r.avg_total,
         esperado: obtenerValorEsperado(skillsMatrix, r.skill_nombre, seniorityEsperado, area),
       }));
-  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area]);
+  }, [skillRows, skillsMatrix, seniorityEsperado, selectedArea, currentUser.area, currentUser.puesto]);
 
   // Calcular promedios desde las filas de skills
   const promedioAuto = useMemo(() => {

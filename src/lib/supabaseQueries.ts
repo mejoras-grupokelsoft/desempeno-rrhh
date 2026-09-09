@@ -1023,3 +1023,102 @@ export async function fetchPersonaSkillAverages(
     };
   }).sort((a, b) => a.skill_nombre.localeCompare(b.skill_nombre));
 }
+
+/**
+ * Igual que fetchPersonaSkillAverages pero para TODAS las personas a la vez
+ * (evita N+1 queries en tablas/resúmenes que muestran a muchas personas juntas,
+ * como el panel de RRHH o el resumen de equipo del líder).
+ * Devuelve un mapa evaluado_email → SkillAvgRow[], con el mismo cálculo real
+ * (evaluations → responses → questions → skills) que ya usa "Mi Desempeño".
+ * No filtra por área/rol_objetivo (igual que la llamada que hace MetricasAnalista).
+ */
+export async function fetchAllPersonaSkillAverages(): Promise<Record<string, SkillAvgRow[]>> {
+  const { data: evals, error: evalErr } = await supabase
+    .from('evaluations')
+    .select('id, evaluado_email, tipo_evaluador');
+  if (evalErr) throw evalErr;
+  if (!evals || evals.length === 0) return {};
+
+  const evalIds = evals.map((e: any) => e.id);
+  const evalMeta: Record<string, { email: string; tipo: 'AUTO' | 'JEFE' }> = {};
+  evals.forEach((e: any) => { evalMeta[e.id] = { email: e.evaluado_email, tipo: e.tipo_evaluador }; });
+
+  const { data: responses, error: respErr } = await supabase
+    .from('responses')
+    .select('id, evaluation_id, pregunta_id, puntaje')
+    .in('evaluation_id', evalIds);
+  if (respErr) throw respErr;
+  if (!responses || responses.length === 0) return {};
+
+  const preguntaIds = [...new Set(responses.map((r: any) => r.pregunta_id))];
+  const { data: questions, error: qErr } = await supabase
+    .from('questions')
+    .select('id, skill_id')
+    .in('id', preguntaIds);
+  if (qErr) throw qErr;
+
+  const preguntaToSkill: Record<string, string> = {};
+  (questions || []).forEach((q: any) => { preguntaToSkill[q.id] = q.skill_id; });
+
+  const skillIds = [...new Set(Object.values(preguntaToSkill))].filter(Boolean);
+  if (skillIds.length === 0) return {};
+
+  const { data: skills, error: skErr } = await supabase
+    .from('skills')
+    .select('id, nombre, tipo')
+    .in('id', skillIds);
+  if (skErr) throw skErr;
+
+  const skillById: Record<string, { nombre: string; tipo: string }> = {};
+  (skills || []).forEach((s: any) => { skillById[s.id] = { nombre: s.nombre, tipo: s.tipo }; });
+
+  // Agrupar por email → skill → scores
+  const byEmail: Record<string, Record<string, {
+    skill_nombre: string;
+    skill_tipo: 'HARD' | 'SOFT';
+    scores_auto: number[];
+    scores_jefe: number[];
+  }>> = {};
+
+  for (const r of responses as any[]) {
+    const meta = evalMeta[r.evaluation_id];
+    if (!meta) continue;
+    const skillId = preguntaToSkill[r.pregunta_id];
+    if (!skillId) continue;
+    const skill = skillById[skillId];
+    if (!skill?.nombre) continue;
+
+    if (!byEmail[meta.email]) byEmail[meta.email] = {};
+    const skillMap = byEmail[meta.email];
+    if (!skillMap[skill.nombre]) {
+      skillMap[skill.nombre] = {
+        skill_nombre: skill.nombre,
+        skill_tipo: skill.tipo as 'HARD' | 'SOFT',
+        scores_auto: [],
+        scores_jefe: [],
+      };
+    }
+    if (meta.tipo === 'AUTO') skillMap[skill.nombre].scores_auto.push(r.puntaje);
+    else if (meta.tipo === 'JEFE') skillMap[skill.nombre].scores_jefe.push(r.puntaje);
+  }
+
+  const avgAll = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+
+  const result: Record<string, SkillAvgRow[]> = {};
+  Object.entries(byEmail).forEach(([email, skillMap]) => {
+    result[email] = Object.values(skillMap).map(s => {
+      const a = avgAll(s.scores_auto);
+      const j = avgAll(s.scores_jefe);
+      const total = a !== null && j !== null ? (a + j) / 2 : (a ?? j ?? 0);
+      return {
+        skill_nombre: s.skill_nombre,
+        skill_tipo: s.skill_tipo,
+        avg_auto: a,
+        avg_jefe: j,
+        avg_total: total,
+      };
+    });
+  });
+
+  return result;
+}

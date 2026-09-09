@@ -4,7 +4,6 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { filterEvaluationsByRole, getUniqueAreas, getUniqueEvaluados, canSeeAll, getUniqueHardSkillAreas } from '../utils/filters';
 import {
-  transformarARadarData,
   calcularPromedioGeneral,
   calcularSeniorityAlcanzado,
   calcularEvolucionSemestral,
@@ -13,10 +12,10 @@ import { filterByPeriod, comparePersonaBetweenPeriods, PERIODOS, type PeriodoTyp
 import PeriodFilter from './shared/PeriodFilter';
 import { generarPDFIndividual, type PDFReporteData } from '../utils/pdfGenerator';
 import { pdfToBase64, generarCuerpoEmail, generarAsuntoEmail, enviarEmailConPDF } from '../utils/emailService';
-import { sanitizeText, sanitizeEmailList, normalizeText } from '../utils/sanitize';
-import { resolveRolObjetivos } from '../utils/puesto';
+import { sanitizeText, sanitizeEmailList, normalizeText, logger } from '../utils/sanitize';
+import { resolveRolObjetivos, resolveSkillsMatrixArea } from '../utils/puesto';
 import { useTeamAccess } from '../hooks/useTeamAccess';
-import { fetchLeaderEmailForUser, fetchEmailTemplate } from '../lib/supabaseQueries';
+import { fetchLeaderEmailForUser, fetchEmailTemplate, fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
 import PersonaRadarPanel from '../components/PersonaRadarPanel';
 import DumbbellChart, { type DumbbellDataPoint } from '../components/DumbbellChart';
 import EvolucionChart from '../components/EvolucionChart';
@@ -26,7 +25,7 @@ import OnboardingTooltip from '../components/OnboardingTooltip';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import FormularioView from '../components/FormularioView';
 import { dashboardSteps } from '../config/onboardingSteps';
-import type { Seniority, Evaluation } from '../types';
+import type { Seniority, Evaluation, RadarDataPoint } from '../types';
 import MiDesempenoPanel from '../components/MiDesempenoPanel';
 
 type VistaType = 'individual' | 'metricas' | 'equipo' | 'formulario' | 'areas';
@@ -250,54 +249,30 @@ export default function Dashboard() {
     return calcularSeniorityAlcanzado(promAnterior);
   }, [selectedEmail, visibleEvaluations]);
 
-  // Transformar datos para el radar - Líder
-  const radarDataHardLider = useMemo(() => {
-    if (hardSkillsLider.length === 0) return [];
-    const firstEval = hardSkillsLider[0];
-    return transformarARadarData(
-      hardSkillsLider,
-      skillsMatrix,
-      seniorityEsperado,
-      firstEval.area
-    );
-  }, [hardSkillsLider, skillsMatrix, seniorityEsperado]);
+  // Promedios reales por habilidad (desde responses → questions → skills) del evaluado seleccionado —
+  // misma fuente de verdad que usa cada persona en su propio "Mi Desempeño". Se usan para el PDF
+  // (evaluations.puntaje/skillNombre son solo un placeholder 'general'/1 y no sirven para calcular nada).
+  const [selectedPersonSkillRows, setSelectedPersonSkillRows] = useState<SkillAvgRow[]>([]);
+  useEffect(() => {
+    if (!selectedEmail) { setSelectedPersonSkillRows([]); return; }
+    fetchPersonaSkillAverages(selectedEmail, undefined, selectedPersonArea)
+      .then(setSelectedPersonSkillRows)
+      .catch(err => logger.error('Error fetching persona skill averages:', err));
+  }, [selectedEmail, selectedPersonArea]);
 
-  const radarDataSoftLider = useMemo(() => {
-    if (softSkillsLider.length === 0) return [];
-    const firstEval = softSkillsLider[0];
-    return transformarARadarData(
-      softSkillsLider,
-      skillsMatrix,
-      seniorityEsperado,
-      firstEval.area
-    );
-  }, [softSkillsLider, skillsMatrix, seniorityEsperado]);
+  // skills_matrix.area no siempre coincide con el área real (tildes, o el área está subdividida
+  // por especialidad/puesto, ej: Capital Humano) — ver resolveSkillsMatrixArea.
+  const selectedPersonMatrixArea = resolveSkillsMatrixArea(selectedPersonArea, users.find(u => u.email === selectedEmail)?.puesto);
 
-  // Transformar datos para el radar - Analista
-  const radarDataHardAnalista = useMemo(() => {
-    if (hardSkillsAnalista.length === 0) return [];
-    const firstEval = hardSkillsAnalista[0];
-    return transformarARadarData(
-      hardSkillsAnalista,
-      skillsMatrix,
-      seniorityEsperado,
-      firstEval.area
-    );
-  }, [hardSkillsAnalista, skillsMatrix, seniorityEsperado]);
+  const toRadarData = (rows: SkillAvgRow[]): RadarDataPoint[] => rows.map(r => ({
+    skill: r.skill_nombre,
+    auto: r.avg_auto ?? 0,
+    jefe: r.avg_jefe ?? 0,
+    promedio: r.avg_total,
+    esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.seniority === seniorityEsperado && m.area === selectedPersonMatrixArea)?.valorEsperado || 0,
+  }));
 
-  const radarDataSoftAnalista = useMemo(() => {
-    if (softSkillsAnalista.length === 0) return [];
-    const firstEval = softSkillsAnalista[0];
-    return transformarARadarData(
-      softSkillsAnalista,
-      skillsMatrix,
-      seniorityEsperado,
-      firstEval.area
-    );
-  }, [softSkillsAnalista, skillsMatrix, seniorityEsperado]);
-
-  // Calcular métricas del promedio general (HARD + SOFT de ambos orígenes)
-  const allRadarData = [...radarDataHardLider, ...radarDataSoftLider, ...radarDataHardAnalista, ...radarDataSoftAnalista];
+  const allRadarData = useMemo(() => toRadarData(selectedPersonSkillRows), [selectedPersonSkillRows, skillsMatrix, seniorityEsperado, selectedPersonArea]);
   const promedioGeneral = useMemo(() => calcularPromedioGeneral(allRadarData), [allRadarData]);
   const seniorityAlcanzado = useMemo(
     () => calcularSeniorityAlcanzado(promedioGeneral),
@@ -459,19 +434,18 @@ export default function Dashboard() {
   const buildPDFData = (): { pdfData: PDFReporteData; nombreArchivo: string; periodoLabel: string } | null => {
     if (!selectedEmail || !mostrarEvaluado) return null;
 
-    // Evaluaciones del S Actual para el radar (siempre)
+    // Evaluaciones del S Actual (solo para fecha/comentarios/evolución — el radar usa selectedPersonSkillRows)
     const allEvalsPersona = visibleEvaluations.filter(e => e.evaluadoEmail === selectedEmail);
     const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
-    const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
-    const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
 
     const firstEval = evalsPersona[0];
-    const evalArea = firstEval?.area || '';
+    const evalArea = firstEval?.area || selectedPersonArea || '';
     const evalRol = firstEval?.origen === 'LIDER' ? 'Líder' : 'Analista';
 
-    const radarDataHard = transformarARadarData(evalsHard, skillsMatrix, seniorityEsperado, evalArea);
-    const radarDataSoft = transformarARadarData(evalsSoft, skillsMatrix, seniorityEsperado, evalArea);
+    // Promedios reales por habilidad (no el placeholder evaluations.puntaje/skillNombre='general')
+    const radarDataHard = toRadarData(selectedPersonSkillRows.filter(r => r.skill_tipo === 'HARD'));
+    const radarDataSoft = toRadarData(selectedPersonSkillRows.filter(r => r.skill_tipo === 'SOFT'));
 
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
@@ -1233,7 +1207,8 @@ export default function Dashboard() {
                   persona={{
                     email: selectedEmail,
                     nombre: mostrarEvaluado.nombre,
-                    area: visibleEvaluations.find(e => e.evaluadoEmail === selectedEmail)?.area || ''
+                    area: visibleEvaluations.find(e => e.evaluadoEmail === selectedEmail)?.area || '',
+                    puesto: users.find(u => u.email === selectedEmail)?.puesto || null,
                   }}
                   titulo={mostrarEvaluado.nombre}
                 />

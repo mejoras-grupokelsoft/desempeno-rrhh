@@ -2,7 +2,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Area, Scatter } from 'recharts';
 import type { Evaluation, User } from '../types';
-import { calcularSeniorityAlcanzado, transformarARadarData } from '../utils/calculations';
+import { calcularSeniorityAlcanzado, obtenerValorEsperado } from '../utils/calculations';
 import { getUniqueAreas, getUniqueEvaluados } from '../utils/filters';
 import { filterByPeriod, calcularTendenciaSeniority, calcularBandasSeniority, PERIODOS, type PeriodoType } from '../utils/dateUtils';
 import { compararSkillsPorPeriodo } from '../utils/newChartCalculations';
@@ -21,8 +21,8 @@ import {
   type ResultadoEvaluacion,
 } from '../utils/emailService';
 import { normalizeText, logger } from '../utils/sanitize';
-import { resolveRolObjetivos } from '../utils/puesto';
-import { fetchLeaderEmailForUser, fetchEmailTemplate, fetchTeamMemberFlags } from '../lib/supabaseQueries';
+import { resolveRolObjetivos, resolveSkillsMatrixArea } from '../utils/puesto';
+import { fetchLeaderEmailForUser, fetchEmailTemplate, fetchTeamMemberFlags, fetchAllPersonaSkillAverages, fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
 import PeriodFilter from './shared/PeriodFilter';
 import Pagination from './shared/Pagination';
 import PersonaRadarPanel from './PersonaRadarPanel';
@@ -59,6 +59,14 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
   }[]>([]);
   useEffect(() => {
     fetchTeamMemberFlags().then(setTeamMemberFlags);
+  }, []);
+
+  // Promedios reales por persona (desde responses → questions → skills).
+  // Es la misma fuente de verdad que usa cada empleado en su propio "Mi Desempeño":
+  // evaluations.puntaje/skill_nombre son solo un placeholder ('general', 1) y no sirven para calcular nada.
+  const [personaSkillAverages, setPersonaSkillAverages] = useState<Record<string, SkillAvgRow[]>>({});
+  useEffect(() => {
+    fetchAllPersonaSkillAverages().then(setPersonaSkillAverages).catch(err => logger.error('Error fetching persona skill averages:', err));
   }, []);
 
   // Cerrar dropdown al hacer clic fuera
@@ -137,6 +145,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       nombre: string;
       area: string;
       rol: string;
+      puesto: string | null;
       promedioAuto: number;
       promedioJefe: number;
       promedioFinal: number;
@@ -160,19 +169,16 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
 
       if (evalsAuto.length === 0 && evalsJefe.length === 0) return;
 
-      const promedioAuto = evalsAuto.length > 0
-        ? evalsAuto.reduce((sum, e) => sum + e.puntaje, 0) / evalsAuto.length
-        : 0;
+      // Promedios reales por habilidad (no el placeholder evaluations.puntaje) —
+      // misma fuente y mismo cálculo que usa cada persona en su propio "Mi Desempeño".
+      const skillRows = personaSkillAverages[email] || [];
+      const autoVals = skillRows.map(r => r.avg_auto).filter((v): v is number => v !== null);
+      const jefeVals = skillRows.map(r => r.avg_jefe).filter((v): v is number => v !== null);
+      const totalVals = skillRows.map(r => r.avg_total);
 
-      const promedioJefe = evalsJefe.length > 0
-        ? evalsJefe.reduce((sum, e) => sum + e.puntaje, 0) / evalsJefe.length
-        : 0;
-
-      // Puntaje final: promedio simple, nunca mayor al puntaje del líder
-      const promedioSimple = (promedioAuto + promedioJefe) / 2;
-      const promedioFinal = promedioAuto > 0 && promedioJefe > 0
-        ? Math.min(promedioSimple, promedioJefe)
-        : promedioAuto > 0 ? promedioAuto : promedioJefe;
+      const promedioAuto = autoVals.length > 0 ? autoVals.reduce((a, b) => a + b, 0) / autoVals.length : 0;
+      const promedioJefe = jefeVals.length > 0 ? jefeVals.reduce((a, b) => a + b, 0) / jefeVals.length : 0;
+      const promedioFinal = totalVals.length > 0 ? totalVals.reduce((a, b) => a + b, 0) / totalVals.length : 0;
 
       const gap = Math.abs(promedioAuto - promedioJefe);
       const seniorityAlcanzado = calcularSeniorityAlcanzado(promedioFinal);
@@ -183,6 +189,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
         nombre: firstEval.evaluadoNombre,
         area: firstEval.area,
         rol: firstEval.origen === 'ANALISTA' ? 'Analista' : 'Líder',
+        puesto: users.find(u => u.email === email)?.puesto || null,
         promedioAuto,
         promedioJefe,
         promedioFinal,
@@ -192,7 +199,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     });
 
     return Array.from(map.values());
-  }, [filteredEvaluations]);
+  }, [filteredEvaluations, personaSkillAverages, users]);
 
   // Filtrar resultados por seniority si está seleccionado
   const filteredResultados = useMemo(() => {
@@ -607,11 +614,19 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
     const evalsQActual = filterByPeriod(allEvalsPersona, 'S_ACTUAL');
     const evalsPersona = evalsQActual.length > 0 ? evalsQActual : allEvalsPersona;
 
-    const evalsHard = evalsPersona.filter(e => e.skillTipo === 'HARD');
-    const evalsSoft = evalsPersona.filter(e => e.skillTipo === 'SOFT');
-
-    const radarDataHard = transformarARadarData(evalsHard, [], persona.seniorityAlcanzado, persona.area);
-    const radarDataSoft = transformarARadarData(evalsSoft, [], persona.seniorityAlcanzado, persona.area);
+    // Promedios reales por habilidad (no el placeholder evaluations.puntaje/skill_nombre='general') —
+    // misma fuente de verdad que usa cada persona en su propio "Mi Desempeño".
+    const skillRows = await fetchPersonaSkillAverages(persona.email, undefined, persona.area);
+    const matrixArea = resolveSkillsMatrixArea(persona.area, persona.puesto);
+    const toRadarData = (rows: SkillAvgRow[]) => rows.map(r => ({
+      skill: r.skill_nombre,
+      auto: r.avg_auto ?? 0,
+      jefe: r.avg_jefe ?? 0,
+      promedio: r.avg_total,
+      esperado: obtenerValorEsperado(skillsMatrix, r.skill_nombre, persona.seniorityAlcanzado, matrixArea),
+    }));
+    const radarDataHard = toRadarData(skillRows.filter(r => r.skill_tipo === 'HARD'));
+    const radarDataSoft = toRadarData(skillRows.filter(r => r.skill_tipo === 'SOFT'));
 
     const evalJefe = evalsPersona.find(e => e.tipoEvaluador === 'JEFE');
     const liderEmail = evalJefe?.evaluadorEmail || '';
