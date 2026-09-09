@@ -4,13 +4,13 @@ import { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, Ca
 import type { Evaluation, User } from '../types';
 import { calcularSeniorityAlcanzado } from '../utils/calculations';
 import { getUniqueEvaluados } from '../utils/filters';
-import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, type PeriodoType } from '../utils/dateUtils';
+import { filterByPeriod, comparePersonaBetweenPeriods, agruparPorSemestre, getSemester, getPreviousSemester, type PeriodoType } from '../utils/dateUtils';
 import { calcularPromedioGeneral } from '../utils/calculations';
 import { useApp } from '../context/AppContext';
 import { useTeamAccess } from '../hooks/useTeamAccess';
 import { logger, normalizeText } from '../utils/sanitize';
 import { fetchAllPersonaSkillAverages, fetchPersonaSkillAverages, type SkillAvgRow } from '../lib/supabaseQueries';
-import { resolveSkillsMatrixArea } from '../utils/puesto';
+import { resolveSkillsMatrixArea, resolveRolObjetivos } from '../utils/puesto';
 import RadarChart from '../components/RadarChart';
 import OnboardingTooltip from '../components/OnboardingTooltip';
 import { liderSteps } from '../config/onboardingSteps';
@@ -27,7 +27,7 @@ interface MetricasLiderProps {
   currentUser: User;
 }
 
-export default function MetricasLider({ evaluations, skillsMatrix, currentUser }: MetricasLiderProps) {
+export default function MetricasLider({ evaluations, users, skillsMatrix, currentUser }: MetricasLiderProps) {
   const { logout } = useApp();
   const { teamsAsLeader } = useTeamAccess(currentUser);
 
@@ -337,70 +337,87 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
   };
 
   // Gráfico de línea para persona seleccionada del equipo
+  // Etiquetas de período reales (ej: "2026-S2"), para traer los promedios reales
+  // (responses → questions → skills) de cada semestre por separado.
+  const periodoActual = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-S${getSemester(now)}`;
+  }, []);
+  const periodoAnterior = useMemo(() => {
+    const { year, semester } = getPreviousSemester();
+    return `${year}-S${semester}`;
+  }, []);
+
+  const [detalleSkillsActual, setDetalleSkillsActual] = useState<SkillAvgRow[]>([]);
+  const [detalleSkillsAnterior, setDetalleSkillsAnterior] = useState<SkillAvgRow[]>([]);
+
+  useEffect(() => {
+    if (!selectedPersonChart) {
+      setDetalleSkillsActual([]);
+      setDetalleSkillsAnterior([]);
+      return;
+    }
+    const userFull = users.find(u => u.email === selectedPersonChart);
+    const area = userFull?.area;
+    const rolObjetivo = userFull ? resolveRolObjetivos(userFull) : ['ANALISTA'];
+
+    fetchPersonaSkillAverages(selectedPersonChart, [periodoActual], area, rolObjetivo)
+      .then(setDetalleSkillsActual)
+      .catch(err => logger.error('Error fetching skills del período actual:', err));
+    fetchPersonaSkillAverages(selectedPersonChart, [periodoAnterior], area, rolObjetivo)
+      .then(setDetalleSkillsAnterior)
+      .catch(err => logger.error('Error fetching skills del período anterior:', err));
+  }, [selectedPersonChart, users, periodoActual, periodoAnterior]);
+
   const selectedPersonLineData = useMemo(() => {
     if (!selectedPersonChart) return null;
-    
-    const personEvals = evaluations.filter(e => e.evaluadoEmail === selectedPersonChart);
-    if (personEvals.length === 0) return null;
-    
-    const comparison = comparePersonaBetweenPeriods(personEvals);
-    if (!comparison) return null;
-    
-    const { sAnterior, sActual } = comparison;
-    
-    // Obtener ROL de la persona para saber su seniority esperado
+
     const personaInfo = resultadosEquipo.find(p => p.email === selectedPersonChart);
-    const seniorityEsperadoPersona: Seniority = 
-      personaInfo?.rol === 'ANALISTA' ? 'Junior' : 
-      personaInfo?.rol === 'LIDER' ? 'Semi Senior' : 'Senior';
-    
-    // Mapear seniority a puntaje esperado
-    const puntajeEsperado = 
-      seniorityEsperadoPersona === 'Senior' ? 3.0 :
-      seniorityEsperadoPersona === 'Semi Senior' ? 2.0 :
-      seniorityEsperadoPersona === 'Junior' ? 1.0 : 0.0;
-    
-    // Separar por tipo de skill
-    const hardSkills = new Set<string>();
-    const softSkills = new Set<string>();
-    
-    [...sAnterior, ...sActual].forEach(s => {
-      if (s.tipo === 'HARD') hardSkills.add(s.skill);
-      else softSkills.add(s.skill);
-    });
-    
-    const hardData = Array.from(hardSkills).map(skill => {
-      const anterior = sAnterior.find(s => s.skill === skill && s.tipo === 'HARD');
-      const actual = sActual.find(s => s.skill === skill && s.tipo === 'HARD');
-      
-      return {
-        skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
-        skillCompleto: skill,
-        'Semestre Anterior': anterior?.promedio || 0,
-        'Semestre Actual': actual?.promedio || 0
-      };
-    }).sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
-    
-    const softData = Array.from(softSkills).map(skill => {
-      const anterior = sAnterior.find(s => s.skill === skill && s.tipo === 'SOFT');
-      const actual = sActual.find(s => s.skill === skill && s.tipo === 'SOFT');
-      
-      return {
-        skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
-        skillCompleto: skill,
-        'Semestre Anterior': anterior?.promedio || 0,
-        'Semestre Actual': actual?.promedio || 0
-      };
-    }).sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
-    
-    return {
-      nombre: personEvals[0].evaluadoNombre,
-      hardData,
-      softData,
-      puntajeEsperado,
-      seniorityEsperado: seniorityEsperadoPersona
+    if (!personaInfo) return null;
+
+    // Objetivo de crecimiento: el siguiente nivel al que ya alcanzó (no un piso fijo por rol),
+    // igual criterio que en Mi Desempeño y en la Vista Individual.
+    const SENIORITY_NEXT: Record<Seniority, Seniority> = {
+      'Trainee': 'Junior',
+      'Junior': 'Semi Senior',
+      'Semi Senior': 'Senior',
+      'Senior': 'Senior',
     };
-  }, [selectedPersonChart, evaluations, resultadosEquipo]);
+    const seniorityEsperadoPersona = SENIORITY_NEXT[personaInfo.seniorityAlcanzado];
+    const userFull = users.find(u => u.email === selectedPersonChart);
+    const matrixArea = resolveSkillsMatrixArea(personaInfo.area, userFull?.puesto);
+
+    // El valor esperado es el mismo para toda skill dentro de un área+seniority (curva 1-4 por nivel),
+    // alcanza con tomar cualquier fila que matchee esa combinación.
+    const filaEsperado = skillsMatrix.find((m: any) => m.area === matrixArea && m.seniority === seniorityEsperadoPersona);
+    const puntajeEsperado = filaEsperado?.valorEsperado || 0;
+
+    const buildData = (tipo: 'HARD' | 'SOFT') => {
+      const skills = new Set<string>([
+        ...detalleSkillsActual.filter(s => s.skill_tipo === tipo).map(s => s.skill_nombre),
+        ...detalleSkillsAnterior.filter(s => s.skill_tipo === tipo).map(s => s.skill_nombre),
+      ]);
+      return Array.from(skills).map(skill => {
+        const anterior = detalleSkillsAnterior.find(s => s.skill_nombre === skill && s.skill_tipo === tipo);
+        const actual = detalleSkillsActual.find(s => s.skill_nombre === skill && s.skill_tipo === tipo);
+        return {
+          skill: skill.length > 20 ? skill.substring(0, 20) + '...' : skill,
+          skillCompleto: skill,
+          'Semestre Anterior': anterior?.avg_total || 0,
+          'Semestre Actual': actual?.avg_total || 0,
+        };
+      }).sort((a, b) => (b['Semestre Actual'] - b['Semestre Anterior']) - (a['Semestre Actual'] - a['Semestre Anterior']));
+    };
+
+    return {
+      nombre: personaInfo.nombre,
+      hardData: buildData('HARD'),
+      softData: buildData('SOFT'),
+      puntajeEsperado,
+      seniorityEsperado: seniorityEsperadoPersona,
+      esPrimeraEvaluacion: detalleSkillsAnterior.length === 0,
+    };
+  }, [selectedPersonChart, resultadosEquipo, users, skillsMatrix, detalleSkillsActual, detalleSkillsAnterior]);
 
   // Paginación
   const totalPages = Math.ceil(resultadosEquipo.length / itemsPerPage);
@@ -498,7 +515,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       {/* Sección: Mi Desempeño */}
       {(subVista === 'desempeno' || !showEquipoSection) && (
       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-sm border border-purple-200 p-6">
-        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -511,7 +528,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         <div data-onboarding="lider-mi-desempeno" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
-            <p className="text-4xl font-bold text-slate-900">{miPromedioGeneral.toFixed(2)}</p>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-100">{miPromedioGeneral.toFixed(2)}</p>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Alcanzado</p>
@@ -651,7 +668,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         {(lineChartData.length > 0 || lineChartData.length === 0) && (
           <div data-onboarding="lider-evolucion" className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
             <div>
-              <div className="flex items-center gap-2 text-lg font-bold text-slate-900 mb-4">
+              <div className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">
                 <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
                   <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
@@ -880,7 +897,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Hard Skills */}
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
                       <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
@@ -907,7 +924,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
 
                 {/* Soft Skills */}
                 <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
                       <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1154,7 +1171,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
       {subVista === 'equipo' && showEquipoSection && (
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100">
         <div className="p-6 border-b border-stone-100">
-          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
               <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1168,7 +1185,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         <div data-onboarding="lider-equipo-filtros" className="sticky top-0 z-10 bg-stone-50">
           <div className="bg-white border-b border-stone-100">
             <div className="flex items-center justify-between p-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
@@ -1267,7 +1284,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
         {resultadosEquipo.length > 0 ? (
           <div className="p-6 pt-0 space-y-6">
             <div data-onboarding="lider-equipo-scatter" className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-sm border border-blue-200 p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1354,7 +1371,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                         const data = payload[0].payload;
                         return (
                           <div className="bg-white p-3 rounded-lg shadow-lg border-2 border-blue-400">
-                            <p className="font-bold text-slate-900 mb-1">{data.nombre}</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">{data.nombre}</p>
                             <p className="text-xs text-slate-600">Promedio: <span className="font-semibold text-blue-600">{data.y.toFixed(2)}</span></p>
                             <p className="text-xs text-slate-600">Seniority: <span className="font-semibold text-purple-600">{data.seniorityAlcanzado}</span></p>
                             <p className="text-xs text-amber-600 mt-2">Click para ver detalle</p>
@@ -1375,20 +1392,16 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                     fill="#3b82f6"
                     shape={(props: any) => {
                       const { cx, cy, payload } = props;
+                      const handleClick = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        setSelectedPersonChart(payload.email);
+                      };
                       return (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r={8}
-                          fill="#3b82f6"
-                          stroke="white"
-                          strokeWidth={2}
-                          style={{ cursor: 'pointer' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPersonChart(payload.email);
-                          }}
-                        />
+                        <g style={{ cursor: 'pointer' }} onClick={handleClick}>
+                          {/* Área invisible más grande para que sea fácil de tocar/cliquear */}
+                          <circle cx={cx} cy={cy} r={16} fill="transparent" />
+                          <circle cx={cx} cy={cy} r={9} fill="#3b82f6" stroke="white" strokeWidth={2} />
+                        </g>
                       );
                     }}
                   />
@@ -1403,7 +1416,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-md font-bold text-slate-900 flex items-center gap-2">
+                      <h4 className="text-md font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                         <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
@@ -1417,6 +1430,12 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                         <span className="text-blue-500">|</span>
                         <span className="text-blue-600">Meta:</span>
                         <span className="text-purple-700 font-bold">{selectedPersonLineData.puntajeEsperado.toFixed(1)}</span>
+                        {selectedPersonLineData.esPrimeraEvaluacion && (
+                          <>
+                            <span className="text-blue-500">|</span>
+                            <span className="text-stone-500 italic">Primera evaluación — sin semestre anterior para comparar, se muestra contra la meta de nivel</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <button
@@ -1439,7 +1458,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                           </svg>
                         </div>
-                        <h5 className="text-sm font-bold text-slate-900">Hard Skills</h5>
+                        <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">Hard Skills</h5>
                       </div>
                       <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={selectedPersonLineData.hardData} layout="vertical" margin={{ left: 100, right: 20, top: 5, bottom: 5 }}>
@@ -1481,7 +1500,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                        <h5 className="text-sm font-bold text-slate-900">Soft Skills</h5>
+                        <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">Soft Skills</h5>
                       </div>
                       <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={selectedPersonLineData.softData} layout="vertical" margin={{ left: 100, right: 20, top: 5, bottom: 5 }}>
@@ -1575,7 +1594,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                   key={persona.email}
                   className="border-b border-stone-100 hover:bg-purple-50 transition"
                 >
-                  <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
+                  <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{persona.nombre}</td>
                   <td className="p-3 text-stone-600">{persona.area}</td>
                   <td className="p-3 text-stone-600">{persona.rol}</td>
                   <td className="text-center p-3 text-xs text-stone-600">
@@ -1589,7 +1608,7 @@ export default function MetricasLider({ evaluations, skillsMatrix, currentUser }
                   </td>
                   <td className="text-center p-3 font-semibold text-blue-600">{persona.promedioAuto.toFixed(2)}</td>
                   <td className="text-center p-3 font-semibold text-orange-600">{persona.promedioJefe.toFixed(2)}</td>
-                  <td className="text-center p-3 font-bold text-slate-900">{persona.promedioFinal.toFixed(2)}</td>
+                  <td className="text-center p-3 font-bold text-slate-900 dark:text-slate-100">{persona.promedioFinal.toFixed(2)}</td>
                   <td className="text-center p-3">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                       persona.seniorityAlcanzado === 'Senior' ? 'bg-purple-100 text-purple-800 border border-purple-200' :

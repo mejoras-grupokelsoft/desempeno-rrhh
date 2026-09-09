@@ -42,7 +42,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   const skill = payload[0]?.payload?.skill;
   return (
     <div className="bg-white rounded-xl shadow-xl border border-stone-200 p-3 min-w-[200px]">
-      <p className="text-sm font-bold text-slate-900 mb-2 border-b border-stone-100 pb-1">{skill}</p>
+      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-2 border-b border-stone-100 pb-1">{skill}</p>
       {payload.map((entry: any) => (
         entry.value != null && (
           <div key={entry.name} className="flex items-center justify-between gap-3 py-0.5">
@@ -165,7 +165,7 @@ export default function PersonaRadarPanel({ email, nombre, area, periodos, skill
             {nombre.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="font-bold text-slate-900">{nombre}</p>
+            <p className="font-bold text-slate-900 dark:text-slate-100">{nombre}</p>
             <p className="text-xs text-stone-500">{email}{area ? ` · ${area}` : ''}</p>
           </div>
           {!loading && overallAvg > 0 && (

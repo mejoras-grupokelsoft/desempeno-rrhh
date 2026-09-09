@@ -208,7 +208,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-sm border border-purple-200 p-6">
       {titulo && (
-        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-3">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -222,7 +222,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
       {!evolutionOnly && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
           <p className="text-sm font-semibold text-stone-500 mb-2">Promedio General</p>
-          <p className="text-4xl font-bold text-slate-900">{miPromedioGeneral.toFixed(2)}</p>
+          <p className="text-4xl font-bold text-slate-900 dark:text-slate-100">{miPromedioGeneral.toFixed(2)}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
           <p className="text-sm font-semibold text-stone-500 mb-2">Seniority Alcanzado</p>
@@ -296,7 +296,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
 
       {/* Evolución de Competencias */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-6">
-        <div className="flex items-center gap-2 text-lg font-bold text-slate-900 mb-4">
+        <div className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">
           <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
             <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
           </div>
@@ -395,7 +395,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {[{ data: miRadarDataHard, tipo: 'HARD', label: 'Hard Skills', color: 'slate' }, { data: miRadarDataSoft, tipo: 'SOFT', label: 'Soft Skills', color: 'purple' }].map(({ data, label }) => (
                 <div key={label} className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">{label}</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">{label}</h3>
                   {data.length > 0 ? (
                     <div onClick={() => setShowDetailedView(true)} className="cursor-pointer">
                       <RadarChart data={data} title="" />
@@ -426,7 +426,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
                 { data: miRadarDataSoft, label: 'Soft Skills 🤝', barData: barrasComparacion.filter(b => b.tipo === 'SOFT') }].map(({ data, label, barData }) => (
                 data.length > 0 && (
                   <div key={label} className="bg-white rounded-2xl border border-stone-100 p-6">
-                    <h3 className="text-lg font-bold text-slate-900 mb-4">{label}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">{label}</h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <RadarChart data={data} title="" />
                       {barData.length > 0 && (

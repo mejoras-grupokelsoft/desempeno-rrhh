@@ -886,7 +886,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       <div className="sticky top-0 z-10 bg-stone-50 pt-4 pb-2">
         <div className="bg-white rounded-2xl shadow-md border border-stone-100">
           <div className="flex items-center justify-between p-4 border-b border-stone-100">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
@@ -1042,7 +1042,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       {/* Métricas Generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
               <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1063,7 +1063,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gradient-to-br from-slate-50 to-stone-50 rounded-xl p-5 border border-stone-100">
             <p className="text-sm font-semibold text-stone-500 mb-1">Total Evaluados</p>
-            <p className="text-4xl font-bold text-slate-900">{metricas.total}</p>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-100">{metricas.total}</p>
           </div>
           <button
             onClick={() => setSelectedSeniority(selectedSeniority === 'Trainee' ? '' : 'Trainee')}
@@ -1206,7 +1206,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
 
       {/* Gap Auto vs Jefe */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
-        <h3 className="text-xl font-bold text-slate-900 mb-3 flex items-center gap-2">
+        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
           <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
           </svg>
@@ -1224,7 +1224,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
         <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                   </svg>
@@ -1342,7 +1342,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                       const simbolo = crecimiento > 0 ? '🚀' : crecimiento < 0 ? '📉' : '➡️';
                       return (
                         <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg">
-                          <p className="font-bold text-slate-900 mb-1">{data.persona}</p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">{data.persona}</p>
                           <p className="text-xs text-slate-600"><span className="font-semibold">Q1 (Anterior):</span> <span style={{color: '#94a3b8', fontWeight: 600}}>{data.q1Score?.toFixed(2)}</span> - {data.q1Seniority}</p>
                           <p className="text-xs text-slate-600"><span className="font-semibold">Q2 (Actual):</span> <span style={{color: '#14b8a6', fontWeight: 600}}>{data.q2Score?.toFixed(2)}</span> - {data.q2Seniority}</p>
                           <p className="text-xs font-bold mt-1" style={{color: crecimiento > 0 ? '#10b981' : crecimiento < 0 ? '#ef4444' : '#64748b'}}>
@@ -1411,7 +1411,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
         <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md">
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                   </svg>
@@ -1529,7 +1529,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                       const simbolo = crecimiento > 0 ? '🚀' : crecimiento < 0 ? '📉' : '➡️';
                       return (
                         <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg">
-                          <p className="font-bold text-slate-900 mb-1">{data.persona}</p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 mb-1">{data.persona}</p>
                           <p className="text-xs text-slate-600"><span className="font-semibold">Q1 (Anterior):</span> <span style={{color: '#94a3b8', fontWeight: 600}}>{data.q1Score?.toFixed(2)}</span> - {data.q1Seniority}</p>
                           <p className="text-xs text-slate-600"><span className="font-semibold">Q2 (Actual):</span> <span style={{color: '#a855f7', fontWeight: 600}}>{data.q2Score?.toFixed(2)}</span> - {data.q2Seniority}</p>
                           <p className="text-xs font-bold mt-1" style={{color: crecimiento > 0 ? '#10b981' : crecimiento < 0 ? '#ef4444' : '#64748b'}}>
@@ -1626,7 +1626,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       {/* Pendientes de Evaluación */}
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto mb-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -1745,7 +1745,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                       className="w-4 h-4 accent-amber-500 cursor-pointer"
                     />
                   </td>
-                  <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
+                  <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{persona.nombre}</td>
                   <td className="p-3 text-stone-600">{persona.area}</td>
                   <td className="p-3 text-stone-600">
                     {[persona.faltaAuto && 'Autoevaluación', persona.faltaJefe && 'Evaluación del líder'].filter(Boolean).join(' + ')}
@@ -1761,7 +1761,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 transition-all hover:shadow-md overflow-x-auto">
         {/* Encabezado con controles masivos */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
@@ -1888,7 +1888,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                     className="w-4 h-4 accent-orange-500 cursor-pointer"
                   />
                 </td>
-                <td className="p-3 font-medium text-slate-900">{persona.nombre}</td>
+                <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{persona.nombre}</td>
                 <td className="p-3 text-stone-600">{persona.area}</td>
                 <td className="p-3 text-stone-600">{persona.rol}</td>
                 <td className="text-center p-3 text-xs text-stone-600">
@@ -1902,7 +1902,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                 </td>
                 <td className="text-center p-3 font-semibold text-slate-600">{persona.promedioAuto.toFixed(2)}</td>
                 <td className="text-center p-3 font-semibold text-orange-600">{persona.promedioJefe.toFixed(2)}</td>
-                <td className="text-center p-3 font-bold text-slate-900">{persona.promedioFinal.toFixed(2)}</td>
+                <td className="text-center p-3 font-bold text-slate-900 dark:text-slate-100">{persona.promedioFinal.toFixed(2)}</td>
                 <td className="text-center p-3">
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                     persona.seniorityAlcanzado === 'Senior' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
@@ -1973,7 +1973,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       {activeMainTab === 'areas' && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-2">
               <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-bold">🏢</span>
               Desempeño por Área
               <span className="text-xs font-normal text-stone-400 ml-1">— clic en un área para ver el desglose por persona</span>
@@ -2007,7 +2007,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                       {/* Header */}
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">{a.area}</p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">{a.area}</p>
                           <p className="text-xs text-stone-500">{a.count} persona{a.count !== 1 ? 's' : ''}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2124,7 +2124,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
           {expandedAreaDrillDown && personasDeAreaExpandida.length > 0 && (
             <div className="bg-white rounded-2xl border border-orange-200 shadow-md p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                   Desglose: <span className="text-orange-600">{expandedAreaDrillDown}</span>
                 </h3>
                 <button
@@ -2158,7 +2158,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                       const isSelected = areaRadarEmail === p.email;
                       return (
                         <tr key={p.email} className={`border-b border-stone-100 hover:bg-orange-50 transition ${isSelected ? 'bg-orange-50 ring-2 ring-inset ring-orange-200' : ''}`}>
-                          <td className="p-3 font-semibold text-slate-900">{p.nombre}</td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{p.nombre}</td>
                           <td className="text-center p-3 text-xs text-stone-500">{p.rol}</td>
                           <td className="text-center p-3 text-blue-600 font-medium">{p.promedioAuto.toFixed(2)}</td>
                           <td className="text-center p-3 text-orange-600 font-medium">{p.promedioJefe > 0 ? p.promedioJefe.toFixed(2) : '—'}</td>
@@ -2222,7 +2222,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h3 className="text-2xl font-bold text-slate-900">PDF + Email Individual</h3>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100">PDF + Email Individual</h3>
                 <p className="text-sm text-stone-600 mt-1">Evaluación de {personaParaPDF.nombre}</p>
               </div>
               <button
@@ -2245,21 +2245,21 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-stone-500">Email:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.email}</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{personaParaPDF.email}</p>
                 </div>
                 <div>
                   <span className="text-stone-500">Área:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.area}</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{personaParaPDF.area}</p>
                 </div>
                 <div>
                   <span className="text-stone-500">Auto / Líder / Final:</span>
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">
                     {personaParaPDF.promedioAuto.toFixed(2)} / {personaParaPDF.promedioJefe.toFixed(2)} → <span className="text-orange-600">{personaParaPDF.promedioFinal.toFixed(2)}</span>
                   </p>
                 </div>
                 <div>
                   <span className="text-stone-500">Seniority Alcanzado:</span>
-                  <p className="font-semibold text-slate-900">{personaParaPDF.seniorityAlcanzado}</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{personaParaPDF.seniorityAlcanzado}</p>
                 </div>
               </div>
             </div>
@@ -2343,7 +2343,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Confirmar envío masivo</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Confirmar envío masivo</h3>
                 <p className="text-sm text-stone-600 mt-1">Esta acción no se puede deshacer</p>
               </div>
             </div>
@@ -2391,7 +2391,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Confirmar envío de recordatorios</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Confirmar envío de recordatorios</h3>
                 <p className="text-sm text-stone-600 mt-1">Esta acción no se puede deshacer</p>
               </div>
             </div>

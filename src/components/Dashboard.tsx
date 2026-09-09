@@ -608,7 +608,7 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">⚙️ Configuraciones</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">⚙️ Configuraciones</h1>
                 <p className="text-sm text-stone-500">{currentUser.nombre} · {currentUser.rol}</p>
               </div>
               <div className="flex gap-2">
@@ -828,7 +828,7 @@ export default function Dashboard() {
         {vista === 'areas' && canSeeAll(currentUser.rol) && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Métricas por Área</h2>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Métricas por Área</h2>
               <span className="text-sm text-stone-500">{areaStats.length} área{areaStats.length !== 1 ? 's' : ''} con evaluaciones</span>
             </div>
 
@@ -860,7 +860,7 @@ export default function Dashboard() {
                       {/* Header */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h3 className="font-bold text-slate-900 text-lg leading-tight">{area.nombre}</h3>
+                          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg leading-tight">{area.nombre}</h3>
                           <p className="text-sm text-stone-500 mt-0.5">
                             {area.cantPersonas} persona{area.cantPersonas !== 1 ? 's' : ''} evaluada{area.cantPersonas !== 1 ? 's' : ''}
                           </p>
@@ -951,7 +951,7 @@ export default function Dashboard() {
               {expandedArea && (
                 <div className="bg-white rounded-2xl border border-orange-200 shadow-md p-6 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                       Área: <span className="text-orange-600">{expandedArea}</span>
                     </h3>
                     <button
@@ -985,7 +985,7 @@ export default function Dashboard() {
                           const isSelected = expandedAreaRadar === p.email;
                           return (
                             <tr key={p.email} className={`border-b border-stone-100 hover:bg-orange-50 transition ${isSelected ? 'bg-orange-50 ring-2 ring-inset ring-orange-200' : ''}`}>
-                              <td className="p-3 font-semibold text-slate-900">{p.nombre}</td>
+                              <td className="p-3 font-semibold text-slate-900 dark:text-slate-100">{p.nombre}</td>
                               <td className="text-center p-3 text-blue-600 font-medium">
                                 {p.promedioAuto !== null ? p.promedioAuto.toFixed(2) : '—'}
                               </td>
@@ -1055,7 +1055,7 @@ export default function Dashboard() {
               <div data-onboarding="dashboard-filtros" className="sticky top-0 z-10 bg-stone-50 pt-4 pb-2 mb-6">
                 <div className="bg-white rounded-2xl shadow-md border border-stone-100">
                   <div className="flex items-center justify-between p-4 border-b border-stone-100">
-                    <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                       <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                       </svg>
@@ -1223,7 +1223,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Reporte PDF</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Reporte PDF</h3>
               <button
                 onClick={() => { setShowPDFModal(false); setComentarioRRHH(''); setEmailDestinatarios(''); setEmailResultado(null); }}
                 className="p-1.5 hover:bg-stone-100 rounded-lg transition"
@@ -1257,7 +1257,7 @@ export default function Dashboard() {
 
             {/* Sección de envío por email */}
             <div className="mb-4">
-              <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
