@@ -34,9 +34,12 @@ export function obtenerValorEsperado(
   seniority: string,
   area: string
 ): number {
+  // .trim() en ambos lados: skills.nombre suele traer espacios finales que
+  // skills_matrix.skill_nombre no tiene (o viceversa), y la comparación exacta fallaba en silencio.
+  const nombreBuscado = skillNombre.trim();
   const skill = skillsMatrix.find(
     (s) =>
-      s.skillNombre === skillNombre &&
+      s.skillNombre.trim() === nombreBuscado &&
       s.seniority === seniority &&
       s.area === area
   );

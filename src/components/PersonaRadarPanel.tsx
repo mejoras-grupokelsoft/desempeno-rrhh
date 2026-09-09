@@ -67,7 +67,7 @@ const CustomTick = (props: any) => {
   const line1 = words.slice(0, mid).join(' ');
   const line2 = words.slice(mid).join(' ');
   return (
-    <text x={x} y={y} textAnchor="middle" fill="#57534e" fontSize="10" fontWeight="600">
+    <text x={x} y={y} textAnchor="middle" style={{ fill: 'rgb(var(--clr-t1))' }} fontSize="10" fontWeight="600">
       {payload.value.length > 18 ? (
         <>
           <tspan x={x} dy="-8">{line1}</tspan>
@@ -113,17 +113,17 @@ export default function PersonaRadarPanel({ email, nombre, area, periodos, skill
 
   // Filtrar por tipo de tab y luego por skillsMatrix del área (si está configurada)
   const areaMatrix = skillsMatrix.filter(m => !area || m.area === area);
-  const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+  const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre.trim())) : null;
   const filtered = skills
     .filter(s => s.skill_tipo === tab)
-    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre));
+    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre.trim()));
 
   // Obtener valor esperado de la matrix para la skill y seniority objetivo
   const getEsperado = (skillNombre: string): number | null => {
     if (!skillsMatrix.length) return null;
     // Buscar por skill_nombre + seniority. Puede estar en el área o sin área.
     const match = skillsMatrix.find(
-      m => m.skillNombre === skillNombre && m.seniority === targetSeniority
+      m => m.skillNombre.trim() === skillNombre.trim() && m.seniority === targetSeniority
     );
     return match?.valorEsperado ?? null;
   };
@@ -217,7 +217,7 @@ export default function PersonaRadarPanel({ email, nombre, area, periodos, skill
                 // Contar solo las skills que realmente se van a mostrar (filtradas por skillsMatrix)
                 const count = skills
                   .filter(s => s.skill_tipo === t)
-                  .filter(s => !allowedNames || allowedNames.has(s.skill_nombre))
+                  .filter(s => !allowedNames || allowedNames.has(s.skill_nombre.trim()))
                   .length;
                 return (
                   <button

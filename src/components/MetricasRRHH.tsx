@@ -1326,7 +1326,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                   ticks={[0, 1, 2, 3, 4, 5]}
                   stroke="#64748b"
                   style={{ fontSize: '11px', fontWeight: 600 }}
-                  label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: '11px', fontWeight: 600, fill: '#64748b' } }}
+                  label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: '11px', fontWeight: 600, fill: 'rgb(var(--clr-t2))' } }}
                 />
                 <Tooltip 
                   contentStyle={{ 
@@ -1513,7 +1513,7 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
                   ticks={[0, 1, 2, 3, 4, 5]}
                   stroke="#64748b"
                   style={{ fontSize: '11px', fontWeight: 600 }}
-                  label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: '11px', fontWeight: 600, fill: '#64748b' } }}
+                  label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: '11px', fontWeight: 600, fill: 'rgb(var(--clr-t2))' } }}
                 />
                 <Tooltip 
                   contentStyle={{ 

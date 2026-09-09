@@ -90,19 +90,13 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
       .finally(() => setLoadingSkills(false));
   }, [currentUser.email]);
 
-  // Seniority esperado: el siguiente nivel al alcanzado actualmente (objetivo de crecimiento),
-  // no un piso fijo por rol — si no, alguien que ya rinde por encima de Junior nunca ve "a mejorar".
-  const SENIORITY_NEXT: Record<Seniority, Seniority> = {
-    'Trainee': 'Junior',
-    'Junior': 'Semi Senior',
-    'Semi Senior': 'Senior',
-    'Senior': 'Senior',
-  };
+  // Seniority esperado: el nivel ya alcanzado (no un piso fijo por rol ni el siguiente nivel
+  // como meta — usar el siguiente nivel deja el techo en 4.0 para cualquiera cerca de Senior,
+  // haciendo imposible que aparezca como "fortaleza" nada, aunque rinda muy por encima de lo suyo).
   const seniorityEsperado: Seniority = useMemo(() => {
     const vals = skillRows.map(r => r.avg_total);
     const promedio = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    const actual = calcularSeniorityAlcanzado(promedio);
-    return SENIORITY_NEXT[actual];
+    return calcularSeniorityAlcanzado(promedio);
   }, [skillRows]);
 
   // Convertir SkillAvgRow → RadarDataPoint con valor esperado de skills_matrix.
@@ -112,10 +106,10 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
     const area = resolveSkillsMatrixArea(selectedArea || currentUser.area, currentUser.puesto);
     // Si skills_matrix tiene configuración para esta área, solo mostrar esas skills
     const areaMatrix = skillsMatrix.filter(m => m.area === area);
-    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre.trim())) : null;
     return skillRows
       .filter(r => r.skill_tipo === 'HARD')
-      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre))
+      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre.trim()))
       .sort((a, b) => b.avg_total - a.avg_total)
       .slice(0, 7) // Máximo 7 skills para legibilidad del radar
       .map(r => ({
@@ -130,10 +124,10 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
   const radarDataSoft = useMemo((): RadarDataPoint[] => {
     const area = resolveSkillsMatrixArea(selectedArea || currentUser.area, currentUser.puesto);
     const areaMatrix = skillsMatrix.filter(m => m.area === area);
-    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+    const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre.trim())) : null;
     return skillRows
       .filter(r => r.skill_tipo === 'SOFT')
-      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre))
+      .filter(r => !allowedNames || allowedNames.has(r.skill_nombre.trim()))
       .sort((a, b) => b.avg_total - a.avg_total)
       .slice(0, 7) // Máximo 7 skills para legibilidad del radar
       .map(r => ({
@@ -609,8 +603,8 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={evolucionTemporal}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis domain={[0, 5]} tick={{ fontSize: 12, fill: '#64748b' }} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 12, fill: 'rgb(var(--clr-t2))' }} />
+                  <YAxis domain={[0, 5]} tick={{ fontSize: 12, fill: 'rgb(var(--clr-t2))' }} />
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px' }}
                   />

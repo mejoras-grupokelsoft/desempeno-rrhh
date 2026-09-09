@@ -44,17 +44,28 @@ export async function fetchUserByEmail(email: string): Promise<User | null> {
 // ============= SKILLS MATRIX =============
 
 export async function fetchSkillsMatrix(): Promise<SupabaseSkillMatrix[]> {
-  const { data, error } = await supabase
-    .from('skills_matrix')
-    .select('*')
-    .order('seniority', { ascending: true })
-    .order('skill_nombre', { ascending: true });
+  // Supabase/PostgREST devuelve máximo 1000 filas por consulta — hay que paginar,
+  // porque skills_matrix ya tiene más de 1000 filas y se estaban perdiendo en silencio.
+  const pageSize = 1000;
+  let all: SupabaseSkillMatrix[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('skills_matrix')
+      .select('*')
+      .order('seniority', { ascending: true })
+      .order('skill_nombre', { ascending: true })
+      .range(from, from + pageSize - 1);
 
-  if (error) {
-    console.error('Error fetching skills matrix:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching skills matrix:', error);
+      throw error;
+    }
+    all = all.concat(data || []);
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
   }
-  return data || [];
+  return all;
 }
 
 export async function fetchSkillsBySeniority(seniority: string): Promise<SupabaseSkillMatrix[]> {

@@ -51,7 +51,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
         auto: r.avg_auto ?? 0,
         jefe: r.avg_jefe ?? 0,
         promedio: parseFloat(r.avg_total.toFixed(2)),
-        esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.area === matrixArea)?.valorEsperado ?? 3,
+        esperado: skillsMatrix.find(m => m.skillNombre.trim() === r.skill_nombre.trim() && m.area === matrixArea)?.valorEsperado ?? 3,
       }));
   }, [skillRows, skillsMatrix, matrixArea]);
 
@@ -63,7 +63,7 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
         auto: r.avg_auto ?? 0,
         jefe: r.avg_jefe ?? 0,
         promedio: parseFloat(r.avg_total.toFixed(2)),
-        esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.area === matrixArea)?.valorEsperado ?? 3,
+        esperado: skillsMatrix.find(m => m.skillNombre.trim() === r.skill_nombre.trim() && m.area === matrixArea)?.valorEsperado ?? 3,
       }));
   }, [skillRows, skillsMatrix, matrixArea]);
 
@@ -311,8 +311,8 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={evolucionHistorica} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="semestre" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                    <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                    <XAxis dataKey="semestre" tick={{ fontSize: 12, fill: 'rgb(var(--clr-t2))' }} />
+                    <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} />
                     <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Bar dataKey="auto" name="Auto-evaluación" fill="#93c5fd" radius={[4, 4, 0, 0]} />
@@ -336,8 +336,8 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
                           <ResponsiveContainer width="100%" height={260}>
                             <LineChart data={data}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                              <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={90} />
-                              <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                              <XAxis dataKey="skill" tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} angle={-45} textAnchor="end" height={90} />
+                              <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} />
                               <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_l, p) => p?.[0]?.payload?.skillCompleto || _l} />
                               <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                               <Line type="monotone" dataKey="Semestre Anterior" stroke={tipo === 'HARD' ? '#93c5fd' : '#d8b4fe'} strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3 }} name={labelAnt} />
@@ -372,8 +372,8 @@ export default function MiDesempenoPanel({ evaluaciones, skillsMatrix, persona, 
                       <ResponsiveContainer width="100%" height={280}>
                         <LineChart data={data}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={90} />
-                          <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }} />
+                          <XAxis dataKey="skill" tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} angle={-45} textAnchor="end" height={90} />
+                          <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: 'rgb(var(--clr-t1))' } }} />
                           <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_l, p) => p?.[0]?.payload?.skillCompleto || _l} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                           <Line type="monotone" dataKey="Semestre Anterior" stroke={tipo === 'HARD' ? '#93c5fd' : '#d8b4fe'} strokeWidth={2} strokeDasharray="5 3" dot={{ fill: tipo === 'HARD' ? '#93c5fd' : '#d8b4fe', r: 4, strokeWidth: 0 }} activeDot={{ r: 6 }} name={labelAnt} />

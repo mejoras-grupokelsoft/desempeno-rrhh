@@ -81,22 +81,22 @@ export default function SkillBarsPanel({
   // Esperado desde skills_matrix
   const getEsperado = (skillNombre: string): number | null => {
     if (!skillsMatrix.length) return null;
-    const match = skillsMatrix.find(m => m.skillNombre === skillNombre && m.seniority === targetSeniority);
+    const match = skillsMatrix.find(m => m.skillNombre.trim() === skillNombre.trim() && m.seniority === targetSeniority);
     return match?.valorEsperado ?? null;
   };
 
   // allowedNames: si la skillsMatrix tiene entries para el área, usarlas para filtrar
   const areaMatrix = skillsMatrix.filter(m => !area || m.area === area);
-  const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre)) : null;
+  const allowedNames = areaMatrix.length > 0 ? new Set(areaMatrix.map(m => m.skillNombre.trim())) : null;
 
   // Contar solo las skills que realmente se muestran (únicas, filtradas por matrix si aplica)
   const hardCount = skills
     .filter(s => s.skill_tipo === 'HARD')
-    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre))
+    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre.trim()))
     .length;
   const softCount = skills
     .filter(s => s.skill_tipo === 'SOFT')
-    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre))
+    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre.trim()))
     .length;
 
   const overallAvg = skills.length > 0 ? skills.reduce((s, r) => s + r.avg_total, 0) / skills.length : 0;
@@ -105,7 +105,7 @@ export default function SkillBarsPanel({
 
   // Ordenar: mejor primero; también aplicar filtro allowedNames
   const sorted = [...filtered]
-    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre))
+    .filter(s => !allowedNames || allowedNames.has(s.skill_nombre.trim()))
     .sort((a, b) => b.avg_total - a.avg_total);
 
   return (

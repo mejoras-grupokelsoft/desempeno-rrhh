@@ -24,7 +24,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   const skill = payload[0].payload.skill;
   
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-2xl border-2 border-stone-200 p-4 min-w-[200px]">
+    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl shadow-2xl border-2 border-stone-200 dark:border-slate-600 p-4 min-w-[200px]">
       <p className="text-sm font-bold text-slate-900 mb-3 pb-2 border-b-2 border-stone-200">
         {skill}
       </p>
@@ -71,15 +71,15 @@ const CustomTick = (props: any) => {
     const line2 = words.slice(mid).join(' ');
     
     return (
-      <text x={x} y={y} textAnchor="middle" fill="#57534e" fontSize="11" fontWeight="600">
+      <text x={x} y={y} textAnchor="middle" style={{ fill: 'rgb(var(--clr-t1))' }} fontSize="11" fontWeight="600">
         <tspan x={x} dy="-8">{line1}</tspan>
         <tspan x={x} dy="14">{line2}</tspan>
       </text>
     );
   }
-  
+
   return (
-    <text x={x} y={y} textAnchor="middle" fill="#57534e" fontSize="12" fontWeight="600">
+    <text x={x} y={y} textAnchor="middle" style={{ fill: 'rgb(var(--clr-t1))' }} fontSize="12" fontWeight="600">
       {payload.value}
     </text>
   );
@@ -136,7 +136,7 @@ export default function RadarChartComponent({ data, title, onClick }: RadarChart
           <PolarRadiusAxis
             angle={90}
             domain={[0, 5]}
-            tick={{ fill: '#78716c', fontSize: 11 }}
+            tick={{ fill: 'rgb(var(--clr-t2))', fontSize: 11 }}
           />
 
           {/* Pentágono Seniority - Gris oscuro punteado */}

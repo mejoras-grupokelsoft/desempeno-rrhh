@@ -269,7 +269,7 @@ export default function Dashboard() {
     auto: r.avg_auto ?? 0,
     jefe: r.avg_jefe ?? 0,
     promedio: r.avg_total,
-    esperado: skillsMatrix.find(m => m.skillNombre === r.skill_nombre && m.seniority === seniorityEsperado && m.area === selectedPersonMatrixArea)?.valorEsperado || 0,
+    esperado: skillsMatrix.find(m => m.skillNombre.trim() === r.skill_nombre.trim() && m.seniority === seniorityEsperado && m.area === selectedPersonMatrixArea)?.valorEsperado || 0,
   }));
 
   const allRadarData = useMemo(() => toRadarData(selectedPersonSkillRows), [selectedPersonSkillRows, skillsMatrix, seniorityEsperado, selectedPersonArea]);
@@ -331,7 +331,7 @@ export default function Dashboard() {
         const actual = sActual.find(s => s.skill === skill);
 
         const matchSkill = skillsMatrix.find(
-          s => s.skillNombre === skill && s.seniority === seniorityEsperado && s.area === area
+          s => s.skillNombre.trim() === skill.trim() && s.seniority === seniorityEsperado && s.area === area
         );
 
         return {

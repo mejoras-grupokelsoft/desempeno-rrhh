@@ -43,7 +43,6 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
   const [fechaFin, setFechaFin] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [filtrosCollapsed, setFiltrosCollapsed] = useState<boolean>(false);
-  const [seniorityEsperado] = useState<Seniority>('Senior'); // Líder se espera que sea Senior
   const [selectedPersonChart, setSelectedPersonChart] = useState<string | null>(null);
   const [showDetailedView, setShowDetailedView] = useState<boolean>(false);
   const [expandedSkills, setExpandedSkills] = useState<{mejoraron: boolean; empeoraron: boolean; iguales: boolean}>({mejoraron: false, empeoraron: false, iguales: false});
@@ -64,6 +63,14 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
       .then(setMisSkillRows)
       .catch(err => logger.error('Error fetching own skill averages:', err));
   }, [currentUser.email, currentUser.area]);
+
+  // Seniority esperado: el nivel ya alcanzado (no un piso fijo en 'Senior') — con un techo fijo
+  // en el tope de la escala, nunca podría aparecer nada como "fortaleza" (no se puede superar 4.0).
+  const seniorityEsperado: Seniority = useMemo(() => {
+    const vals = misSkillRows.map(r => r.avg_total);
+    const promedio = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    return calcularSeniorityAlcanzado(promedio);
+  }, [misSkillRows]);
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -211,7 +218,7 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
         auto: r.avg_auto ?? 0,
         jefe: r.avg_jefe ?? 0,
         promedio: r.avg_total,
-        esperado: skillsMatrix.find((m: any) => m.skillNombre === r.skill_nombre && m.seniority === seniorityEsperado && m.area === resolveSkillsMatrixArea(currentUser.area, currentUser.puesto))?.valorEsperado || 0,
+        esperado: skillsMatrix.find((m: any) => m.skillNombre.trim() === r.skill_nombre.trim() && m.seniority === seniorityEsperado && m.area === resolveSkillsMatrixArea(currentUser.area, currentUser.puesto))?.valorEsperado || 0,
       }));
   }, [misSkillRows, skillsMatrix, seniorityEsperado, currentUser]);
 
@@ -223,7 +230,7 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
         auto: r.avg_auto ?? 0,
         jefe: r.avg_jefe ?? 0,
         promedio: r.avg_total,
-        esperado: skillsMatrix.find((m: any) => m.skillNombre === r.skill_nombre && m.seniority === seniorityEsperado && m.area === resolveSkillsMatrixArea(currentUser.area, currentUser.puesto))?.valorEsperado || 0,
+        esperado: skillsMatrix.find((m: any) => m.skillNombre.trim() === r.skill_nombre.trim() && m.seniority === seniorityEsperado && m.area === resolveSkillsMatrixArea(currentUser.area, currentUser.puesto))?.valorEsperado || 0,
       }));
   }, [misSkillRows, skillsMatrix, seniorityEsperado, currentUser]);
 
@@ -247,6 +254,26 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
   const miComparacion = useMemo(() => {
     return comparePersonaBetweenPeriods(evaluacionesPropias);
   }, [evaluacionesPropias]);
+
+  // Mis Fortalezas y Puntos de Mejora — comparación contra el esperado de skills_matrix
+  // (no depende de tener un semestre anterior, a diferencia de "En qué mejoré/Debería mejorar").
+  const misFortalezasYMejoras = useMemo(() => {
+    const conDiferencia = allRadarData
+      .filter(r => r.skill.toLowerCase() !== 'general')
+      .map(r => ({ ...r, diferencia: parseFloat((r.promedio - r.esperado).toFixed(2)) }));
+
+    const fortalezas = conDiferencia
+      .filter(r => r.diferencia >= 0.3)
+      .sort((a, b) => b.diferencia - a.diferencia)
+      .slice(0, 5);
+
+    const mejoras = conDiferencia
+      .filter(r => r.diferencia < 0)
+      .sort((a, b) => a.diferencia - b.diferencia)
+      .slice(0, 5);
+
+    return { fortalezas, mejoras };
+  }, [allRadarData]);
 
   // Evolución histórica por semestre (para cuando hay 3+ semestres)
   const evolucionHistorica = useMemo(() => {
@@ -540,6 +567,63 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
           </div>
         </div>
 
+        {/* Mis Fortalezas y Puntos de Mejora */}
+        {(misFortalezasYMejoras.fortalezas.length > 0 || misFortalezasYMejoras.mejoras.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {misFortalezasYMejoras.fortalezas.length > 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-green-300 dark:border-green-700 p-6">
+                <h3 className="text-lg font-bold text-green-800 dark:text-green-300 mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  Mis Fortalezas
+                </h3>
+                <div className="space-y-3">
+                  {misFortalezasYMejoras.fortalezas.map((skill, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
+                        <span className="text-xs font-bold text-green-600">+{skill.diferencia.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
+                        <span>Promedio: <strong className="text-green-600">{skill.promedio}</strong></span>
+                        <span>•</span>
+                        <span>Esperado: <strong>{skill.esperado}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {misFortalezasYMejoras.mejoras.length > 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-amber-300 dark:border-amber-700 p-6">
+                <h3 className="text-lg font-bold text-amber-800 dark:text-amber-300 mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Puntos de Mejora
+                </h3>
+                <div className="space-y-3">
+                  {misFortalezasYMejoras.mejoras.map((skill, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
+                        <span className="text-xs font-bold text-red-600">{skill.diferencia.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
+                        <span>Promedio: <strong className="text-orange-600">{skill.promedio}</strong></span>
+                        <span>•</span>
+                        <span>Esperado: <strong>{skill.esperado}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Mensaje informativo para primera evaluación */}
         {evaluacionesPropias.length > 0 && !(analisisSkills.mejoraron.length > 0 || analisisSkills.empeoraron.length > 0 || analisisSkills.iguales.length > 0) && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-blue-200 dark:border-blue-700 p-6 mb-6">
@@ -692,8 +776,8 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={evolucionHistorica} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="semestre" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                        <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} label={{ value: 'Promedio (1-5)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }} />
+                        <XAxis dataKey="semestre" tick={{ fontSize: 12, fill: 'rgb(var(--clr-t2))' }} />
+                        <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} label={{ value: 'Promedio (1-5)', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: 'rgb(var(--clr-t1))' } }} />
                         <RechartsTooltip
                           contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}
                         />
@@ -717,8 +801,8 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                             <ResponsiveContainer width="100%" height={300}>
                               <LineChart data={lineChartData.filter(d => d.tipo === 'HARD')}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={100} />
-                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} angle={-45} textAnchor="end" height={100} />
+                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} />
                                 <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_label, payload) => payload?.[0]?.payload?.skillCompleto || _label} />
                                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                                 <Line type="monotone" dataKey="Semestre Anterior" stroke="#93c5fd" strokeWidth={2} strokeDasharray="5 3" dot={{ fill: '#93c5fd', r: 4, strokeWidth: 0 }} name="Semestre Anterior (Hard)" />
@@ -736,8 +820,8 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                             <ResponsiveContainer width="100%" height={300}>
                               <LineChart data={lineChartData.filter(d => d.tipo === 'SOFT')}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: '#6b7280' }} angle={-45} textAnchor="end" height={100} />
-                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                                <XAxis dataKey="skill" tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} angle={-45} textAnchor="end" height={100} />
+                                <YAxis domain={[0, 5]} tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }} />
                                 <RechartsTooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} labelFormatter={(_label, payload) => payload?.[0]?.payload?.skillCompleto || _label} />
                                 <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                                 <Line type="monotone" dataKey="Semestre Anterior" stroke="#d8b4fe" strokeWidth={2} strokeDasharray="5 3" dot={{ fill: '#d8b4fe', r: 4, strokeWidth: 0 }} name="Semestre Anterior (Soft)" />
@@ -769,15 +853,15 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis 
                       dataKey="skill" 
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }}
                       angle={-45}
                       textAnchor="end"
                       height={100}
                     />
                     <YAxis 
                       domain={[0, 5]} 
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
-                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }}
+                      tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }}
+                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: 'rgb(var(--clr-t1))' } }}
                     />
                     <RechartsTooltip 
                       contentStyle={{ 
@@ -834,15 +918,15 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis 
                       dataKey="skill" 
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }}
                       angle={-45}
                       textAnchor="end"
                       height={100}
                     />
                     <YAxis 
                       domain={[0, 5]} 
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
-                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#374151' } }}
+                      tick={{ fontSize: 11, fill: 'rgb(var(--clr-t2))' }}
+                      label={{ value: 'Puntaje', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: 'rgb(var(--clr-t1))' } }}
                     />
                     <RechartsTooltip 
                       contentStyle={{ 
@@ -1337,7 +1421,7 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                   <XAxis 
                     type="number"
                     dataKey="x"
-                    tick={{ fontSize: 11, fill: '#334155' }}
+                    tick={{ fontSize: 11, fill: 'rgb(var(--clr-t1))' }}
                     angle={-45}
                     textAnchor="end"
                     height={80}
@@ -1352,8 +1436,8 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
                     type="number"
                     dataKey="y"
                     domain={[0, 5]} 
-                    tick={{ fontSize: 11, fill: '#334155' }}
-                    label={{ value: 'Puntaje Promedio', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#334155' } }}
+                    tick={{ fontSize: 11, fill: 'rgb(var(--clr-t1))' }}
+                    label={{ value: 'Puntaje Promedio', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: 'rgb(var(--clr-t1))' } }}
                   />
                   <ZAxis range={[100, 200]} />
                   
