@@ -638,36 +638,6 @@ export default function MetricasAnalista({ evaluations, skillsMatrix, currentUse
                     </div>
                   </div>
                 </div>
-
-                {/* Radar charts (misma vista que el líder) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {radarDataHard.length > 0 && (
-                    <div className="bg-white rounded-xl border border-blue-100 p-4">
-                      <h3 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
-                        <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center">
-                          <svg className="w-3.5 h-3.5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                          </svg>
-                        </div>
-                        Hard Skills
-                      </h3>
-                      <RadarChart data={radarDataHard} title="" />
-                    </div>
-                  )}
-                  {radarDataSoft.length > 0 && (
-                    <div className="bg-white rounded-xl border border-purple-100 p-4">
-                      <h3 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-2">
-                        <div className="w-5 h-5 bg-purple-100 rounded flex items-center justify-center">
-                          <svg className="w-3.5 h-3.5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        Soft Skills
-                      </h3>
-                      <RadarChart data={radarDataSoft} title="" />
-                    </div>
-                  )}
-                </div>
               </div>
             )}
           </div>

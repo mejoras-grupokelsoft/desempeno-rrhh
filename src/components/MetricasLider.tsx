@@ -567,63 +567,6 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
           </div>
         </div>
 
-        {/* Mis Fortalezas y Puntos de Mejora */}
-        {(misFortalezasYMejoras.fortalezas.length > 0 || misFortalezasYMejoras.mejoras.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {misFortalezasYMejoras.fortalezas.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-green-300 dark:border-green-700 p-6">
-                <h3 className="text-lg font-bold text-green-800 dark:text-green-300 mb-4 flex items-center gap-2">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
-                  Mis Fortalezas
-                </h3>
-                <div className="space-y-3">
-                  {misFortalezasYMejoras.fortalezas.map((skill, idx) => (
-                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
-                        <span className="text-xs font-bold text-green-600">+{skill.diferencia.toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
-                        <span>Promedio: <strong className="text-green-600">{skill.promedio}</strong></span>
-                        <span>•</span>
-                        <span>Esperado: <strong>{skill.esperado}</strong></span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {misFortalezasYMejoras.mejoras.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-amber-300 dark:border-amber-700 p-6">
-                <h3 className="text-lg font-bold text-amber-800 dark:text-amber-300 mb-4 flex items-center gap-2">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Puntos de Mejora
-                </h3>
-                <div className="space-y-3">
-                  {misFortalezasYMejoras.mejoras.map((skill, idx) => (
-                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
-                        <span className="text-xs font-bold text-red-600">{skill.diferencia.toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
-                        <span>Promedio: <strong className="text-orange-600">{skill.promedio}</strong></span>
-                        <span>•</span>
-                        <span>Esperado: <strong>{skill.esperado}</strong></span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Mensaje informativo para primera evaluación */}
         {evaluacionesPropias.length > 0 && !(analisisSkills.mejoraron.length > 0 || analisisSkills.empeoraron.length > 0 || analisisSkills.iguales.length > 0) && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-blue-200 dark:border-blue-700 p-6 mb-6">
@@ -1246,6 +1189,63 @@ export default function MetricasLider({ evaluations, users, skillsMatrix, curren
             <p className="text-amber-600 text-sm mt-2">
               Verificá que el email coincida con el de las evaluaciones en el CSV
             </p>
+          </div>
+        )}
+
+        {/* Mis Fortalezas y Puntos de Mejora */}
+        {(misFortalezasYMejoras.fortalezas.length > 0 || misFortalezasYMejoras.mejoras.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {misFortalezasYMejoras.fortalezas.length > 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-green-300 dark:border-green-700 p-6">
+                <h3 className="text-lg font-bold text-green-800 dark:text-green-300 mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  Mis Fortalezas
+                </h3>
+                <div className="space-y-3">
+                  {misFortalezasYMejoras.fortalezas.map((skill, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
+                        <span className="text-xs font-bold text-green-600">+{skill.diferencia.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
+                        <span>Promedio: <strong className="text-green-600">{skill.promedio}</strong></span>
+                        <span>•</span>
+                        <span>Esperado: <strong>{skill.esperado}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {misFortalezasYMejoras.mejoras.length > 0 && (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-amber-300 dark:border-amber-700 p-6">
+                <h3 className="text-lg font-bold text-amber-800 dark:text-amber-300 mb-4 flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Puntos de Mejora
+                </h3>
+                <div className="space-y-3">
+                  {misFortalezasYMejoras.mejoras.map((skill, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{skill.skill}</span>
+                        <span className="text-xs font-bold text-red-600">{skill.diferencia.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-stone-600 dark:text-stone-300">
+                        <span>Promedio: <strong className="text-orange-600">{skill.promedio}</strong></span>
+                        <span>•</span>
+                        <span>Esperado: <strong>{skill.esperado}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
