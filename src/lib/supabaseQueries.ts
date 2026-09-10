@@ -793,43 +793,110 @@ export interface EvaluationWithResponses {
   responses: {
     pregunta_id: string;
     pregunta_nombre: string;
+    skill_nombre: string;
     skill_tipo: 'HARD' | 'SOFT';
     puntaje: number;
   }[];
 }
 
-export async function fetchEvaluationHistory(userEmail: string): Promise<EvaluationWithResponses[]> {
-  // Traer evaluaciones donde el usuario es evaluado O evaluador
-  const { data: evals, error } = await supabase
+export async function fetchEvaluationHistory(userEmail: string, teamMemberEmails: string[] = []): Promise<EvaluationWithResponses[]> {
+  // Traer evaluaciones que YO envié: mi propia autoevaluación (evaluador=evaluado=yo)
+  // y las evaluaciones JEFE que hice sobre mi equipo. Deliberadamente NO se trae la
+  // evaluación que mi líder hizo sobre mí (evaluado=yo, evaluador=otro): eso llega
+  // después por PDF, no debe verse acá.
+  const { data: ownEvals, error } = await supabase
     .from('evaluations')
     .select('id, periodo, tipo_evaluador, evaluado_email, evaluado_nombre, evaluador_email, area, comentario, puntaje, skill_nombre, skill_tipo, created_at')
-    .or(`evaluado_email.eq.${userEmail},evaluador_email.eq.${userEmail}`)
+    .eq('evaluador_email', userEmail)
     .order('created_at', { ascending: false })
     .limit(50);
 
   if (error) throw error;
-  if (!evals || evals.length === 0) return [];
 
-  // Para cada evaluación, traer las respuestas con el nombre de la pregunta
-  const result: EvaluationWithResponses[] = [];
-  for (const ev of evals) {
-    const { data: responses } = await supabase
-      .from('responses')
-      .select('pregunta_id, puntaje, questions:pregunta_id(pregunta, skills:skill_id(tipo))')
-      .eq('evaluation_id', ev.id)
-      .order('puntaje', { ascending: false });
+  let evals = ownEvals || [];
 
-    result.push({
-      ...ev,
-      responses: (responses || []).map((r: any) => ({
-        pregunta_id: r.pregunta_id,
-        pregunta_nombre: r.questions?.pregunta || r.pregunta_id,
-        skill_tipo: r.questions?.skills?.tipo || 'SOFT',
-        puntaje: r.puntaje,
-      })),
-    });
+  // Si lidero un equipo, traer también las autoevaluaciones de mis miembros
+  // (no aparecen en la consulta anterior porque no soy evaluado ni evaluador ahí)
+  if (teamMemberEmails.length > 0) {
+    const { data: teamAutoEvals, error: teamError } = await supabase
+      .from('evaluations')
+      .select('id, periodo, tipo_evaluador, evaluado_email, evaluado_nombre, evaluador_email, area, comentario, puntaje, skill_nombre, skill_tipo, created_at')
+      .in('evaluado_email', teamMemberEmails)
+      .eq('tipo_evaluador', 'AUTO')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (teamError) throw teamError;
+
+    const seenIds = new Set(evals.map(e => e.id));
+    for (const ev of teamAutoEvals || []) {
+      if (!seenIds.has(ev.id)) {
+        evals.push(ev);
+        seenIds.add(ev.id);
+      }
+    }
+    evals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
-  return result;
+
+  if (evals.length === 0) return [];
+
+  // Traer TODAS las respuestas de todas las evaluaciones de una sola vez.
+  // Nota: no se usa el embed de PostgREST (`questions:pregunta_id(...)`) porque
+  // no hay relación de llave foránea registrada en el schema cache entre
+  // responses y questions — el embed falla con PGRST200 y queda silenciado
+  // (por eso históricamente el historial solo mostraba el comentario). Se arma
+  // el join a mano, igual que fetchPersonaSkillAverages.
+  const evalIds = evals.map(e => e.id);
+  const { data: allResponses } = await supabase
+    .from('responses')
+    .select('evaluation_id, pregunta_id, puntaje')
+    .in('evaluation_id', evalIds);
+
+  const preguntaIds = [...new Set((allResponses || []).map(r => r.pregunta_id))];
+
+  let questions: { id: string; pregunta: string; skill_id: string }[] = [];
+  if (preguntaIds.length > 0) {
+    const { data } = await supabase
+      .from('questions')
+      .select('id, pregunta, skill_id')
+      .in('id', preguntaIds);
+    questions = data || [];
+  }
+
+  const skillIds = [...new Set(questions.map(q => q.skill_id).filter(Boolean))];
+  let skills: { id: string; nombre: string; tipo: 'HARD' | 'SOFT' }[] = [];
+  if (skillIds.length > 0) {
+    const { data } = await supabase
+      .from('skills')
+      .select('id, nombre, tipo')
+      .in('id', skillIds);
+    skills = data || [];
+  }
+
+  const questionById = new Map(questions.map(q => [q.id, q]));
+  const skillById = new Map(skills.map(s => [s.id, s]));
+  const responsesByEvalId = new Map<string, typeof allResponses>();
+  for (const r of allResponses || []) {
+    if (!responsesByEvalId.has(r.evaluation_id)) responsesByEvalId.set(r.evaluation_id, []);
+    responsesByEvalId.get(r.evaluation_id)!.push(r);
+  }
+
+  return evals.map(ev => ({
+    ...ev,
+    responses: (responsesByEvalId.get(ev.id) || [])
+      .map(r => {
+        const q = questionById.get(r.pregunta_id);
+        const s = q ? skillById.get(q.skill_id) : undefined;
+        return {
+          pregunta_id: r.pregunta_id,
+          pregunta_nombre: q?.pregunta || r.pregunta_id,
+          skill_nombre: s?.nombre || 'Sin skill',
+          skill_tipo: s?.tipo || 'SOFT' as const,
+          puntaje: r.puntaje,
+        };
+      })
+      .sort((a, b) => b.puntaje - a.puntaje),
+  }));
 }
 
 // ============= NOTAS DEL LÍDER =============

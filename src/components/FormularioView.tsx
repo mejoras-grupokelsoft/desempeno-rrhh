@@ -215,7 +215,7 @@ export default function FormularioView() {
       {/* Historial */}
       {activeTab === 'historial' && (
         <div className="bg-white rounded-2xl border border-stone-200 p-6">
-          <EvaluationHistory />
+          <EvaluationHistory teamMemberEmails={memberEmailsToEvaluate} />
         </div>
       )}
     </div>

@@ -1,11 +1,22 @@
 // src/components/Login.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { sanitizeEmail, logger } from '../utils/sanitize';
 import { supabase } from '../lib/supabaseClient';
+
+// Genera el par de nonce que exige Supabase para signInWithIdToken:
+// el crudo se manda a Supabase, el hasheado (SHA-256) se manda a Google.
+async function generateNonce(): Promise<{ raw: string; hashed: string }> {
+  const raw = crypto.randomUUID();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  const hashed = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return { raw, hashed };
+}
 
 interface GoogleUser {
   email: string;
@@ -26,10 +37,16 @@ export default function Login() {
   const [authMethod, setAuthMethod] = useState<'google' | 'email'>('google');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [googleNonce, setGoogleNonce] = useState<{ raw: string; hashed: string } | null>(null);
 
   // Mostrar modo desarrollo siempre en localhost
   const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const hasGoogleClientId = !!import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  // Nonce fresco para el botón de Google (requerido por supabase.auth.signInWithIdToken)
+  useEffect(() => {
+    generateNonce().then(setGoogleNonce);
+  }, []);
 
   // Login con email + password
   const handleEmailPasswordLogin = async (e: React.FormEvent) => {
@@ -80,7 +97,7 @@ export default function Login() {
     }
   };
 
-  const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
       setIsLoading(true);
       setError('');
@@ -97,6 +114,22 @@ export default function Login() {
       if (!googleEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) {
         setError('El token de Google no contiene un email válido.');
         return;
+      }
+
+      // Intento crear también una sesión real de Supabase Auth (necesaria para RLS).
+      // No bloqueante: si el provider de Google todavía no está habilitado en Supabase,
+      // el login sigue funcionando igual que hasta ahora vía whitelist.
+      if (googleNonce) {
+        const { error: supaAuthError } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: credentialResponse.credential,
+          nonce: googleNonce.raw,
+        });
+        if (supaAuthError) {
+          logger.warn('Supabase signInWithIdToken falló (no bloquea el login):', supaAuthError.message);
+        }
+      } else {
+        logger.warn('Nonce de Google no estaba listo; se omite signInWithIdToken en este intento.');
       }
 
       // Buscar usuario en la whitelist
@@ -243,7 +276,7 @@ export default function Login() {
                     <p className="font-semibold">Google OAuth no configurado</p>
                     <p className="text-xs mt-1">Falta <code>VITE_GOOGLE_CLIENT_ID</code> en .env</p>
                   </div>
-                ) : isLoading ? (
+                ) : isLoading || !googleNonce ? (
                   <div className="flex items-center gap-3 px-6 py-3 bg-brand-surface2 rounded-xl">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: 'rgb(var(--clr-indigo))' }} />
                     <span className="text-brand-t2 text-sm font-medium">Verificando...</span>
@@ -252,6 +285,7 @@ export default function Login() {
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
                     onError={handleGoogleError}
+                    nonce={googleNonce.hashed}
                     theme={dark ? 'filled_black' : 'outline'}
                     size="large"
                     text="signin_with"
@@ -320,7 +354,7 @@ export default function Login() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: 'Director', email: 'capital.humano@grupokelsoft.com', cls: 'bg-violet-600 hover:bg-violet-700' },
+                  { label: 'Director', email: 'capitalhumano@grupokelsoft.com', cls: 'bg-violet-600 hover:bg-violet-700' },
                   { label: 'Líder',    email: 'pamela.gomez@grupokelsoft.com',   cls: 'bg-blue-600 hover:bg-blue-700' },
                   { label: 'Analista', email: 'killa.roldan@grupokelsoft.com',   cls: 'bg-teal-600 hover:bg-teal-700' },
                 ].map(({ label, email: devEmail, cls }) => {
