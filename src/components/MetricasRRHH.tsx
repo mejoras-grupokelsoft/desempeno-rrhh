@@ -184,12 +184,14 @@ export default function MetricasRRHH({ evaluations, users, skillsMatrix }: Metri
       const seniorityAlcanzado = calcularSeniorityAlcanzado(promedioFinal);
 
       const firstEval = evals[0];
+      const user = users.find(u => u.email === email);
       map.set(email, {
         email,
         nombre: firstEval.evaluadoNombre,
         area: firstEval.area,
-        rol: firstEval.origen === 'ANALISTA' ? 'Analista' : 'Líder',
-        puesto: users.find(u => u.email === email)?.puesto || null,
+        // El rol sale del usuario, no de la evaluación: origen solo dice si la eval fue AUTO o JEFE
+        rol: user?.rol === 'Lider' ? 'Líder' : (user?.rol ?? 'Sin rol'),
+        puesto: user?.puesto || null,
         promedioAuto,
         promedioJefe,
         promedioFinal,

@@ -62,6 +62,7 @@ export default async (req: Request) => {
 
   const enviados: string[] = [];
   const fallidos: string[] = [];
+  const errores: { destinatario: string; error: string }[] = [];
 
   for (const destinatario of destinatarios) {
     try {
@@ -78,18 +79,34 @@ export default async (req: Request) => {
     } catch (err) {
       console.error(`Error enviando email a ${destinatario}:`, err);
       fallidos.push(destinatario);
+      errores.push({ destinatario, error: describeSmtpError(err) });
     }
   }
 
+  const todosFallaron = fallidos.length > 0 && enviados.length === 0;
+  // El detalle del primer error va en el mensaje para que se vea en pantalla sin mirar logs
+  const detalle = errores.length > 0 ? ` — ${errores[0].error}` : '';
+
   return jsonResponse({
-    error: fallidos.length > 0 && enviados.length === 0,
+    error: todosFallaron,
     message: fallidos.length === 0
       ? 'Email enviado correctamente'
-      : `Enviados: ${enviados.length}, fallidos: ${fallidos.length}`,
+      : `Enviados: ${enviados.length}, fallidos: ${fallidos.length}${detalle}`,
     enviados,
     fallidos,
-  });
+    errores,
+  }, todosFallaron ? 502 : 200);
 };
+
+// Resume el error de nodemailer sin datos sensibles: código SMTP + respuesta del servidor
+function describeSmtpError(err: unknown): string {
+  const e = err as { code?: string; responseCode?: number; response?: string; message?: string };
+  const partes = [
+    e.responseCode ? String(e.responseCode) : e.code,
+    (e.response || e.message || 'Error desconocido').slice(0, 200),
+  ].filter(Boolean);
+  return partes.join(' ');
+}
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {

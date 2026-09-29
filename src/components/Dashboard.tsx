@@ -441,7 +441,9 @@ export default function Dashboard() {
 
     const firstEval = evalsPersona[0];
     const evalArea = firstEval?.area || selectedPersonArea || '';
-    const evalRol = firstEval?.origen === 'LIDER' ? 'Líder' : 'Analista';
+    // El rol sale del usuario, no de la evaluación: origen solo dice si la eval fue AUTO o JEFE
+    const userRol = users.find(u => u.email === selectedEmail)?.rol;
+    const evalRol = userRol === 'Lider' ? 'Líder' : (userRol ?? 'Sin rol');
 
     // Promedios reales por habilidad (no el placeholder evaluations.puntaje/skillNombre='general')
     const radarDataHard = toRadarData(selectedPersonSkillRows.filter(r => r.skill_tipo === 'HARD'));

@@ -4,7 +4,7 @@ import type { User, Evaluation, SkillMatrix } from '../types';
 import { logger } from '../utils/sanitize';
 import { fetchUsers, fetchAllEvaluations, fetchSkillsMatrix } from '../lib/supabaseQueries';
 import { adaptEvaluations, adaptSkillsMatrix } from '../lib/adapters';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, setAuditUser } from '../lib/supabaseClient';
 
 // ── Constantes de sesión ──────────────────────────────────────────────
 const SESSION_KEY = 'currentUser';
@@ -72,6 +72,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Mantener actualizado el usuario que se manda a la base para el log de auditoría
+  useEffect(() => {
+    setAuditUser(loggedInUser?.email ?? null, impersonatedUser?.email ?? null);
+  }, [loggedInUser, impersonatedUser]);
 
   // Validar usuario logueado contra whitelist cuando llegan datos de Supabase
   useEffect(() => {
